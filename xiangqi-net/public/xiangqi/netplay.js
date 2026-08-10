@@ -1,4 +1,4 @@
-/* 立山象棋 · 联网层 v6
+/* 象棋室 · 联网层 v7
  * 加到 index.html 末尾：<script src="netplay.js"></script>
  * 仅当 URL 带 ?table=... 时激活；否则离线版行为完全不变。
  */
@@ -15,7 +15,7 @@
   }
   if (!tableId) return;
 
-  // 立刻注入：从棋室进来时不再看到立山斋开场页（越早越好，避免闪现）
+  // 立刻注入：从棋室进来时跳过棋盘程序自带的开场页（越早越好，避免闪现）
   (function(){
     try{
       var st=document.createElement('style');
@@ -56,7 +56,7 @@
       // 加"返回棋室"按钮（右上角红色小标签）
       var btn=document.createElement('a');
       btn.href='../';
-      btn.textContent='← 返回棋室';
+      btn.textContent='← 返回大厅';
       btn.style.cssText='position:fixed;top:8px;right:12px;z-index:9999999;'
         +'color:#f2e8d5;background:#9d2c21;text-decoration:none;'
         +'padding:4px 12px;border-radius:4px;font:12px "Songti SC","SimSun",serif;'
@@ -320,7 +320,7 @@
       }
     }
     aiWaitTries=0;
-    setStatus('立山AI 思考中…');
+    setStatus('电脑思考中…');
     try{ if(typeof triggerAI==='function') triggerAI(); }catch(e){}
   }
 
@@ -383,7 +383,7 @@
     try{ if(typeof draw==='function') draw(); }catch(e){}
   }
 
-  // 联网/AI 模式：直接隐藏开场页，不播过渡动画（从棋室进来无需再看一次立山斋页）
+  // 联网/AI 模式：直接隐藏开场页，不播过渡动画
   function skipIntro(onDone){
     // 尽早注入样式，避免开场页闪现
     try{
@@ -474,7 +474,7 @@
     // 搭叠加层
     var top=document.createElement('div'); top.id='net-top';
     var timerStr=(optTotal||optPerMove) ? '<span class="net-timer" id="ntR" title="红方时间">—</span>|<span class="net-timer" id="ntB" title="黑方时间">—</span>' : '';
-    top.innerHTML='<b>立山斋象棋室</b>'
+    top.innerHTML='<b>象棋室</b>'
       +'<span id="net-players">—</span>'
       +'<span id="net-status">连接中…</span>'
       +timerStr
@@ -528,7 +528,7 @@
     // 求和（对方同意才判和）
     document.getElementById('nb-draw').onclick=function(){
       if(isSpectator){ setStatus('观战者不能求和'); return; }
-      if(aiSeat && aiDriving){ setStatus('与 AI 对弈不支持求和'); return; }
+      if(aiSeat && aiDriving){ setStatus('与电脑对弈不支持求和'); return; }
       socket.emit('draw:request'); setStatus('已提出和棋，等待对方回应…');
     };
     // 翻转
