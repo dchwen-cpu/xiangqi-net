@@ -2,13 +2,42 @@
 <html lang="zh-Hans">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>立山斋象棋室</title>
+<title>象棋室 · 在线对弈</title>
 <style>
 :root{--paper:#ece3d0;--p2:#e4dabf;--ink:#201d16;--i2:#443c30;--faint:#8a8069;--line:#cabd9f;--seal:#9d2c21;--jade:#4a7c59;
   --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;--song:"Songti SC","STSong","SimSun","宋体",serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--paper);color:var(--i2);font-family:var(--song);min-height:100vh}
-.wrap{max-width:900px;margin:0 auto;padding:0 16px 40px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px 40px}
+.main-grid{display:flex;gap:18px;align-items:flex-start}
+.col-left{flex:1;min-width:0}
+.col-right{width:260px;flex:0 0 260px;position:sticky;top:12px}
+@media(max-width:860px){.main-grid{flex-direction:column}.col-right{width:100%;flex:none;position:static}}
+.panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
+  font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px}
+.panel-hd .cnt{color:var(--faint);font-size:.78rem;font-family:var(--song)}
+.plist{max-height:250px;overflow-y:auto}
+.prow{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid rgba(202,189,159,.4);font-size:.88rem}
+.prow:last-child{border-bottom:0}
+.prow .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.prow .pst{font-size:.75rem;color:var(--faint);white-space:nowrap}
+.prow .pst.busy{color:var(--seal)}
+.prow button{padding:3px 9px;font-size:.78rem;background:var(--paper);border:1px solid var(--line);
+  border-radius:4px;cursor:pointer;color:var(--i2);white-space:nowrap}
+.prow button:hover{border-color:var(--seal);color:var(--seal)}
+.prow.me{background:rgba(157,44,33,.07)}
+.prow.ai .pn{color:var(--jade)}
+.ai-dot{width:7px;height:7px;border-radius:50%;background:var(--jade);flex:0 0 auto}
+.pempty{padding:16px 13px;color:var(--faint);font-size:.84rem;text-align:center}
+/* 邀请弹窗 */
+#inv-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(32,29,22,.55);
+  align-items:center;justify-content:center}
+#inv-box{background:var(--paper);border:2px solid var(--seal);border-radius:10px;padding:24px 30px;
+  text-align:center;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#inv-box .t{font-family:var(--kai);font-size:1.2rem;color:var(--ink);margin-bottom:8px}
+#inv-box .m{color:var(--i2);margin-bottom:18px;font-size:.95rem}
+#inv-box .b{display:flex;gap:10px;justify-content:center}
 
 header{text-align:center;padding:22px 0 12px;border-bottom:1px solid var(--line)}
 header .t{font-family:var(--kai);font-size:1.75rem;letter-spacing:.3em;color:var(--ink)}
@@ -79,9 +108,8 @@ button.go:disabled{opacity:.4;cursor:default}
 <body>
 <div class="wrap">
 <header>
-  <div class="t">立山斋象棋室</div>
-  <div class="s">下棋 · 对弈 · 切磋　—　立山斋</div>
-  <div style="margin-top:7px"><a class="home-link" href="https://lishanzhai.dchwen.workers.dev/">← 返回立山斋主页</a></div>
+  <div class="t">象棋室</div>
+  <div class="s">在线对弈 · 人机切磋 · 观战</div>
 </header>
 
 <div id="room-status">
@@ -111,7 +139,29 @@ button.go:disabled{opacity:.4;cursor:default}
     <button class="sec" id="lc-send">发送</button>
   </div>
 </div>
+</div><!-- /col-left -->
+
+<aside class="col-right">
+  <div class="panel">
+    <div class="panel-hd">在厅棋友 <span class="cnt" id="uc">0</span></div>
+    <div class="plist" id="user-list"><div class="pempty">正在载入…</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-hd">电脑棋手 <span class="cnt">随时应战</span></div>
+    <div class="plist" id="ai-list"></div>
+  </div>
+</aside>
+</div><!-- /main-grid -->
 </div>
+
+<div id="inv-modal"><div id="inv-box">
+  <div class="t">对局邀请</div>
+  <div class="m" id="inv-msg"></div>
+  <div class="b">
+    <button class="pri" id="inv-yes">接受</button>
+    <button class="sec" id="inv-no">谢绝</button>
+  </div>
+</div></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -144,6 +194,80 @@ socket.on('lobby:online', function(d){
     : '';
 });
 socket.on('lobby:chat', function(m){ addLobbyChat(m); });
+
+// 在厅棋友名单
+socket.on('lobby:users', function(list){ renderUsers(list); });
+
+// 收到邀请
+var pendingInvite=null;
+socket.on('invite:recv', function(d){
+  pendingInvite=d.inviteId;
+  $('inv-msg').innerHTML='<b style="color:var(--seal)">'+esc(d.fromName)+'</b> 邀请你对弈';
+  $('inv-modal').style.display='flex';
+});
+socket.on('invite:declined', function(d){
+  addLobbyChat({sys:true,text:(d.name||'对方')+' 谢绝了你的邀请'});
+});
+socket.on('invite:gone', function(){ addLobbyChat({sys:true,text:'该邀请已失效'}); });
+
+$('inv-yes').onclick=function(){
+  if(pendingInvite) socket.emit('invite:accept',{inviteId:pendingInvite});
+  pendingInvite=null; $('inv-modal').style.display='none';
+};
+$('inv-no').onclick=function(){
+  if(pendingInvite) socket.emit('invite:decline',{inviteId:pendingInvite});
+  pendingInvite=null; $('inv-modal').style.display='none';
+};
+
+// 渲染在厅棋友
+function renderUsers(list){
+  var box=$('user-list');
+  $('uc').textContent=(list?list.length:0)+' 人';
+  if(!list||!list.length){ box.innerHTML='<div class="pempty">厅内暂无他人</div>'; return; }
+  box.innerHTML='';
+  list.forEach(function(u){
+    var isMe=(u.pid===myPID);
+    var el=document.createElement('div');
+    el.className='prow'+(isMe?' me':'');
+    var busy=(u.status!=='在厅');
+    el.innerHTML='<span class="pn">'+esc(u.name)+(isMe?'（我）':'')+'</span>'
+      +'<span class="pst'+(busy?' busy':'')+'">'+esc(u.status||'')+'</span>'
+      +(isMe||busy?'':'<button data-pid="'+esc(u.pid)+'">邀请</button>');
+    var b=el.querySelector('button');
+    if(b) b.onclick=function(){
+      socket.emit('invite:send',{toPid:u.pid},function(res){
+        if(res&&res.ok){ addLobbyChat({sys:true,text:'已向 '+u.name+' 发出邀请，等待回应…'}); }
+        else alert((res&&res.err)||'邀请失败');
+      });
+    };
+    box.appendChild(el);
+  });
+}
+
+// 渲染常驻 AI（各等级）
+function renderAI(){
+  var box=$('ai-list');
+  var lv=[{l:1,n:'新手'},{l:3,n:'业余'},{l:4,n:'棋手'},{l:5,n:'高手'},
+          {l:6,n:'棋协大师'},{l:7,n:'大师'},{l:8,n:'特级大师'},{l:9,n:'引擎巅峰'}];
+  box.innerHTML='';
+  lv.forEach(function(x){
+    var el=document.createElement('div');
+    el.className='prow ai';
+    el.innerHTML='<span class="ai-dot"></span>'
+      +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
+      +'<button>对弈</button>';
+    el.querySelector('button').onclick=function(){
+      socket.emit('lobby:playAI',{level:x.l},function(res){
+        if(res&&res.ok){
+          location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
+            +'&seat=red&name='+encodeURIComponent(myName());
+        } else alert((res&&res.err)||'暂时无法开始');
+      });
+    };
+    box.appendChild(el);
+  });
+}
+renderAI();
 // 对局设置变更 → 立即重绘（不必等下一次 lobby:list）
 socket.on('table:options', function(){ socket.emit('lobby:enter',{name:myName(),playerId:myPID}); });
 
@@ -211,7 +335,7 @@ function toggleReady(){
 // ── 渲染 ──
 function renderTables(list){
   var box=$('tables');
-  if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「立山AI」对弈，也可等人来下。</div>'; return; }
+  if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「电脑棋手」对弈，也可等人来下。</div>'; return; }
   box.innerHTML='';
   list.forEach(function(t){
     var mine = (t.id===myTable);
@@ -228,7 +352,7 @@ function renderTables(list){
     var acts='';
     if(mine){
       acts='<button class="sec" data-act="leave">离桌</button>';
-      // 对面空着 → 可邀请立山AI；已有AI → 可请其离座
+      // 对面空着 → 可邀请电脑；已有AI → 可请其离座
       var myC = mySeat, oppC = (mySeat==='red'?'black':'red');
       var oppTaken = (oppC==='red') ? t.red : t.black;
       if(t.aiSeat===oppC){
@@ -239,7 +363,7 @@ function renderTables(list){
           return '<option value="'+l+'"'+(l===6?' selected':'')+'>'+l+'级 '+nm+'</option>';
         }).join('');
         acts='<select class="ailv-pre" style="padding:5px 6px;font-size:.82rem">'+lvOpts+'</select>'
-            +'<button class="sec" data-act="inviteai">邀请立山AI</button>'+acts;
+            +'<button class="sec" data-act="inviteai">邀请电脑</button>'+acts;
       }
     } else {
       if(!t.red   && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="red">坐红</button>';
