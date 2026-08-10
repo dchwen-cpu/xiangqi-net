@@ -286,6 +286,21 @@
     try{ if(typeof triggerAI==='function') triggerAI(); }catch(e){}
   }
 
+  // 检查强引擎文件是否存在（4级以上需要 stockfish.js，7级以上还需 .nnue）
+  function checkEngineFiles(){
+    try{
+      fetch('stockfish.js',{method:'HEAD'}).then(function(r){
+        if(!r.ok || (r.headers.get('content-type')||'').indexOf('html')>=0){
+          engineMissing('stockfish.js');
+        }
+      }).catch(function(){ engineMissing('stockfish.js'); });
+    }catch(e){}
+  }
+  function engineMissing(f){
+    addChat({name:'系统',seat:'',text:'缺少引擎文件 '+f+'，4级以上棋力不可用（已降为内置引擎）'});
+    setStatus('引擎文件缺失，仅内置AI可用', true);
+  }
+
   // 本地判出胜负（将死/困毙/长将/重复等）→ 上报服务器，由服务器广播结束
   function checkLocalGameOver(socket){
     try{
@@ -513,6 +528,9 @@
     function sendChat(){ var v=(elChatIn.value||'').trim(); if(v){ socket.emit('chat',{text:v}); elChatIn.value=''; } }
     document.getElementById('net-send').onclick=sendChat;
     elChatIn.addEventListener('keydown',function(e){ if(e.key==='Enter')sendChat(); });
+
+    // 引擎文件自检：缺失时明确提示，避免"强AI默默变内置AI"
+    checkEngineFiles();
 
     // 初始化计时器显示
     if(optTotal){
