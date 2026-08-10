@@ -185,7 +185,11 @@
       if(p.aiSeat!==undefined){
         aiSeat=p.aiSeat; aiLv=p.aiLevel||6;
         aiDriving = !!(aiSeat && myColor && ((myColor==='r'&&aiSeat==='black')||(myColor==='b'&&aiSeat==='red')));
-        if(hooksSet){ applyTableMode(); setTimeout(maybeRunAI,300); }
+        if(hooksSet){
+          applyTableMode();
+          warmUpEngine();                        // AI 一落座就开始加载引擎
+          setTimeout(maybeRunAI,300);
+        }
       }
     });
     socket.on('table:over',    function(o){
@@ -219,6 +223,7 @@
     if(hooksSet) return; hooksSet=true;
     window.__netMode=true;
     applyTableMode();
+    warmUpEngine();
 
     // triggerAI：人人对弈时禁用；我驱动AI时放行（回放中一律禁）
     if(typeof triggerAI==='function'&&!triggerAI.__net){
@@ -258,13 +263,25 @@
     }
   }
 
+  // 预热强引擎：AI 落座后立即开始加载，避免轮到它时才现下
+  function warmUpEngine(){
+    if(!aiDriving || aiLv<4) return;
+    try{
+      if(typeof StrongEngine!=='undefined' && typeof StrongEngine.init==='function'
+         && !StrongEngine.isReady() && !StrongEngine.isLoading()){
+        StrongEngine.init('stockfish.js');
+      }
+      if(aiLv>=7 && typeof ensureNnueLoaded==='function') ensureNnueLoaded();
+    }catch(e){}
+  }
+
   // 根据本桌是否有AI，设置象棋 app 的对局模式
   function applyTableMode(){
     try{
       if(aiDriving && aiSeat){
         mode   = 'ai';
         aiSide = (aiSeat==='red') ? 'r' : 'b';   // 引擎执AI那一方
-        window.aiLevel = aiLv;                    // 写全局，供 triggerAI 取用
+        aiLevel = aiLv;    // 裸赋值：app 的 aiLevel 是 let 声明的，不在 window 上
         if(typeof prepEngineForLevel==='function') prepEngineForLevel(aiLv);
       } else {
         mode   = 'pvp';
@@ -274,6 +291,7 @@
   }
 
   // 轮到AI且由我驱动 → 让本地引擎算一步
+  var aiWaitTries=0;
   function maybeRunAI(){
     if(!aiDriving || !aiSeat) return;
     if(typeof turn==='undefined') return;
@@ -282,6 +300,26 @@
     if(turn!==aiChar) return;
     try{ if(aiThinking) return; }catch(e){}
     applyTableMode();
+
+    // 4级以上需要强引擎：没就绪就等它，别让内置AI顶上（否则棋力名不副实）
+    if(aiLv>=4 && typeof StrongEngine!=='undefined'){
+      var ready=false;
+      try{ ready=StrongEngine.isReady(); }catch(e){}
+      if(!ready){
+        try{
+          if(typeof StrongEngine.init==='function' && !StrongEngine.isLoading()) StrongEngine.init('stockfish.js');
+        }catch(e){}
+        aiWaitTries++;
+        if(aiWaitTries<40){                       // 最多等约 20 秒
+          setStatus('强引擎加载中…（'+aiLv+'级）');
+          setTimeout(maybeRunAI,500);
+          return;
+        }
+        // 等太久：明确告知已降级，而不是默默用内置引擎
+        addChat({name:'系统',seat:'',text:'强引擎加载失败，本局暂用内置引擎'});
+      }
+    }
+    aiWaitTries=0;
     setStatus('立山AI 思考中…');
     try{ if(typeof triggerAI==='function') triggerAI(); }catch(e){}
   }
