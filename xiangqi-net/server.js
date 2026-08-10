@@ -30,7 +30,8 @@ const summary = t => ({
   ready:{...t.ready}, options:{...t.options},
   aiSeat:t.aiSeat, aiLevel:t.aiLevel              // 哪一方是AI、棋力
 });
-const MIN_TABLES = 10;      // 大厅至少显示这么多张桌（不足补空桌，可扩充）
+const MIN_TABLES = 10;      // 大厅常驻桌数（不足补齐，可扩充）
+const MAX_TABLES = 60;      // 上限，防止无限建桌撑爆内存
 function ensureMinTables(){
   // 空闲(无人)的桌数
   let idle = 0;
@@ -127,8 +128,11 @@ io.on('connection', socket => {
 
   // 大厅公共聊天
   socket.on('lobby:chat', (p)=>{
-    const text=p&&String(p.text||'').slice(0,200);
+    const text=p&&String(p.text||'').trim().slice(0,200);
     if(!text) return;
+    const now=Date.now();
+    if(now-(socket.data.lastLobbyChat||0) < 1200) return;   // 限流
+    socket.data.lastLobbyChat=now;
     const name=(p&&p.name)?String(p.name).slice(0,20):(socket.data.name||'访客');
     io.to('lobby').emit('lobby:chat',{name,text,ts:Date.now()});
   });
@@ -151,6 +155,10 @@ io.on('connection', socket => {
   });
 
   socket.on('table:create', (p,ack)=>{
+    if(tables.size>=MAX_TABLES){
+      if(typeof ack==='function') ack({ok:false,err:'棋室已满，请先用现有空桌'});
+      return;
+    }
     const id=newId();
     tables.set(id,{
       id, name:(p?.name ? String(p.name).slice(0,30):('棋桌 '+id.slice(-3))),
@@ -324,6 +332,10 @@ io.on('connection', socket => {
     // 轮到 AI 时，允许在座的真人代 AI 发着法（AI 计算跑在该玩家浏览器里）
     const aiTurn = (t.aiSeat && need===t.aiSeat);
     if(color!==need && !aiTurn){ sendState(socket,t,socket.data.seat||'spectate'); return; }
+    // 坐标合法性校验：行 0-9、列 0-8，非法数据直接丢弃并让该端重同步
+    const ok = [m.fr,m.tr].every(v=>Number.isInteger(v)&&v>=0&&v<=9)
+            && [m.fc,m.tc].every(v=>Number.isInteger(v)&&v>=0&&v<=8);
+    if(!ok){ sendState(socket,t,socket.data.seat||'spectate'); return; }
     const idx=t.moves.length;
     t.moves.push({fr:m.fr,fc:m.fc,tr:m.tr,tc:m.tc});
     socket.to(t.id).emit('move',{fr:m.fr,fc:m.fc,tr:m.tr,tc:m.tc,by:color,idx});
@@ -331,8 +343,12 @@ io.on('connection', socket => {
 
   socket.on('chat', p=>{
     const t=tables.get(socket.data.tableId);
-    const text=p&&String(p.text||'').slice(0,300);
-    if(t&&text) io.to(t.id).emit('chat',{name:socket.data.name||'访客',seat:socket.data.seat,text,ts:Date.now()});
+    const text=p&&String(p.text||'').trim().slice(0,300);
+    if(!t||!text) return;
+    const now=Date.now();
+    if(now-(socket.data.lastChat||0) < 1200) return;      // 限流，防刷屏
+    socket.data.lastChat=now;
+    io.to(t.id).emit('chat',{name:socket.data.name||'访客',seat:socket.data.seat,text,ts:now});
   });
 
   socket.on('resign', ()=>{
