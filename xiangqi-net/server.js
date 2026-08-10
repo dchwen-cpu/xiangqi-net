@@ -7,8 +7,60 @@ const { Server } = require('socket.io');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors:{ origin:'*' } });
-app.use(express.static(path.join(__dirname,'public')));
+// WASM 多线程需要这两个响应头（同源资源不受影响）
+app.use((req,res,next)=>{
+  res.setHeader('Cross-Origin-Opener-Policy','same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy','require-corp');
+  next();
+});
+
+app.use(express.static(path.join(__dirname,'public'), {
+  setHeaders: (res, fp) => {
+    // 正确的 MIME，否则浏览器拒绝执行/实例化
+    if (fp.endsWith('.wasm')) res.setHeader('Content-Type','application/wasm');
+    if (fp.endsWith('.nnue')) res.setHeader('Content-Type','application/octet-stream');
+    if (fp.endsWith('.js'))   res.setHeader('Content-Type','text/javascript; charset=utf-8');
+  }
+}));
 app.get('/', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
+
+// 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
+app.get('/engine-check', (_,res)=>{
+  const fs=require('fs');
+  const dir=path.join(__dirname,'public','xiangqi');
+  const need=[
+    ['index.html','棋盘主程序'],
+    ['netplay.js','联网层'],
+    ['stockfish.js','强引擎主文件（4-9级必需）'],
+    ['stockfish.wasm','强引擎核心（最容易漏传）'],
+    ['xiangqi-c07e94a5c7cb.nnue','神经网络（7-9级必需）']
+  ];
+  let files=[];
+  try{ files=fs.readdirSync(dir); }catch(e){ files=null; }
+  let html='<meta charset="utf-8"><body style="font:14px/1.8 system-ui;padding:24px;max-width:760px;margin:auto">';
+  html+='<h2>引擎文件自检</h2><p style="color:#666">目录：public/xiangqi/</p>';
+  if(files===null){
+    html+='<p style="color:#c00"><b>目录不存在</b>，请确认 public/xiangqi/ 路径正确。</p>';
+  } else {
+    html+='<table cellpadding="8" style="border-collapse:collapse;width:100%">';
+    html+='<tr style="background:#eee"><th align="left">文件</th><th align="left">状态</th><th align="left">大小</th><th align="left">说明</th></tr>';
+    for(const [f,desc] of need){
+      const hit=files.find(x=>x.toLowerCase()===f.toLowerCase());
+      let size='-';
+      if(hit){ try{ size=(fs.statSync(path.join(dir,hit)).size/1048576).toFixed(2)+' MB'; }catch(e){} }
+      html+='<tr style="border-bottom:1px solid #ddd"><td><code>'+f+'</code></td>'
+          +'<td style="color:'+(hit?'#080':'#c00')+'"><b>'+(hit?'存在':'缺失')+'</b></td>'
+          +'<td>'+size+'</td><td style="color:#666">'+desc+'</td></tr>';
+    }
+    html+='</table>';
+    html+='<h3>该目录下实际所有文件（'+files.length+' 个）</h3>';
+    html+='<pre style="background:#f6f6f6;padding:12px;overflow:auto">'
+        + files.map(f=>{ let sz=''; try{ sz=' — '+(fs.statSync(path.join(dir,f)).size/1024).toFixed(0)+' KB'; }catch(e){} return f+sz; }).join('\n')
+        + '</pre>';
+  }
+  html+='<p><a href="/">← 返回棋室</a></p></body>';
+  res.type('html').send(html);
+});
 
 const tables     = new Map();
 const recoTimers = new Map();
