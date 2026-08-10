@@ -5,7 +5,25 @@
 (function(){
   var params  = new URLSearchParams(location.search);
   var tableId = params.get('table');
+  var hasAiParam = !!params.get('aiLevel');
+  if(tableId || hasAiParam){
+    try{
+      var _st=document.createElement('style');
+      _st.textContent='#intro-screen{display:none!important;opacity:0!important;visibility:hidden!important}';
+      (document.head||document.documentElement).appendChild(_st);
+    }catch(e){}
+  }
   if (!tableId) return;
+
+  // 立刻注入：从棋室进来时不再看到立山斋开场页（越早越好，避免闪现）
+  (function(){
+    try{
+      var st=document.createElement('style');
+      st.id='np-hide-intro';
+      st.textContent='#intro-screen{display:none!important;opacity:0!important;visibility:hidden!important}';
+      (document.head||document.documentElement).appendChild(st);
+    }catch(e){}
+  })();
 
   var seatWanted = decodeURIComponent(params.get('seat')   || 'auto');
   var myName     = decodeURIComponent(params.get('name')   || '访客');
@@ -416,6 +434,7 @@
 
     var bar=document.createElement('div'); bar.id='net-bar';
     bar.innerHTML='<button id="nb-undo">悔棋请求</button>'
+      +'<button id="nb-draw">求和</button>'
       +'<button id="nb-flip">↕ 翻转</button>'
       +'<button id="nb-review">🔍 复盘</button>'
       +'<div class="sp"></div>'
@@ -446,7 +465,18 @@
     // 悔棋
     document.getElementById('nb-undo').onclick=function(){
       if(isSpectator){setStatus('观战者不能请求悔棋');return;}
+      if(aiSeat && aiDriving){                       // 与AI下：直接悔一手，无需协商
+        socket.emit('undo:accept');
+        setStatus('已悔棋一手');
+        return;
+      }
       socket.emit('undo:request'); setStatus('已请求悔棋，等待对方同意…');
+    };
+    // 求和（对方同意才判和）
+    document.getElementById('nb-draw').onclick=function(){
+      if(isSpectator){ setStatus('观战者不能求和'); return; }
+      if(aiSeat && aiDriving){ setStatus('与 AI 对弈不支持求和'); return; }
+      socket.emit('draw:request'); setStatus('已提出和棋，等待对方回应…');
     };
     // 翻转
     document.getElementById('nb-flip').onclick=function(){

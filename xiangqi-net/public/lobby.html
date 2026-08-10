@@ -144,6 +144,8 @@ socket.on('lobby:online', function(d){
     : '';
 });
 socket.on('lobby:chat', function(m){ addLobbyChat(m); });
+// 对局设置变更 → 立即重绘（不必等下一次 lobby:list）
+socket.on('table:options', function(){ socket.emit('lobby:enter',{name:myName(),playerId:myPID}); });
 
 socket.on('table:state', function(st){
   if(st.tableId===myTable){ mySeat=st.seat; }
@@ -165,7 +167,10 @@ $('btn-create').onclick=function(){
   });
 };
 
+var sitting=false;
 function sit(id,seat){
+  if(sitting) return;              // 防连点重复入座
+  sitting=true; setTimeout(function(){ sitting=false; },800);
   myTable=id; mySeat=seat;
   socket.emit('table:join',{tableId:id,seat:seat,name:myName(),playerId:myPID},function(res){
     if(res&&!res.ok){ alert(res.err||'无法入座'); myTable=null; mySeat=null; }
@@ -229,7 +234,12 @@ function renderTables(list){
       if(t.aiSeat===oppC){
         acts='<button class="sec" data-act="dismissai">请AI离座</button>'+acts;
       } else if(!oppTaken){
-        acts='<button class="sec" data-act="inviteai">邀请立山AI</button>'+acts;
+        var lvOpts=[1,2,3,4,5,6,7,8,9].map(function(l){
+          var nm={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'}[l];
+          return '<option value="'+l+'"'+(l===6?' selected':'')+'>'+l+'级 '+nm+'</option>';
+        }).join('');
+        acts='<select class="ailv-pre" style="padding:5px 6px;font-size:.82rem">'+lvOpts+'</select>'
+            +'<button class="sec" data-act="inviteai">邀请立山AI</button>'+acts;
       }
     } else {
       if(!t.red   && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="red">坐红</button>';
@@ -308,7 +318,8 @@ function renderTables(list){
       else if(a==='watch') btn.onclick=function(){ watch(t.id); };
       else if(a==='ready') btn.onclick=toggleReady;
       else if(a==='inviteai') btn.onclick=function(){
-        var lv=6; var sel=document.getElementById('o-ailv'); if(sel) lv=parseInt(sel.value)||6;
+        var sel=el.querySelector('.ailv-pre');     // 读按钮旁边那个棋力选择
+        var lv=sel?(parseInt(sel.value)||6):6;
         socket.emit('table:inviteAI',{level:lv});
       };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
