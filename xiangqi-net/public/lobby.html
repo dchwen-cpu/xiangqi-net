@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>象棋室 · 在线对弈</title>
+<style>
+:root{--paper:#ece3d0;--p2:#e4dabf;--ink:#201d16;--i2:#443c30;--faint:#8a8069;--line:#cabd9f;--seal:#9d2c21;--jade:#4a7c59;
+  --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;--song:"Songti SC","STSong","SimSun","宋体",serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--i2);font-family:var(--song);min-height:100vh}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px 40px}
+.main-grid{display:flex;gap:18px;align-items:flex-start}
+.col-left{flex:1;min-width:0}
+.col-right{width:260px;flex:0 0 260px;position:sticky;top:12px}
+@media(max-width:860px){.main-grid{flex-direction:column}.col-right{width:100%;flex:none;position:static}}
+.panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
+  font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px}
+.panel-hd .cnt{color:var(--faint);font-size:.78rem;font-family:var(--song)}
+.plist{max-height:250px;overflow-y:auto}
+.prow{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid rgba(202,189,159,.4);font-size:.88rem}
+.prow:last-child{border-bottom:0}
+.prow .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.prow .pst{font-size:.75rem;color:var(--faint);white-space:nowrap}
+.prow .pst.busy{color:var(--seal)}
+.prow button{padding:3px 9px;font-size:.78rem;background:var(--paper);border:1px solid var(--line);
+  border-radius:4px;cursor:pointer;color:var(--i2);white-space:nowrap}
+.prow button:hover{border-color:var(--seal);color:var(--seal)}
+.prow.me{background:rgba(157,44,33,.07)}
+.prow.ai .pn{color:var(--jade)}
+.ai-dot{width:7px;height:7px;border-radius:50%;background:var(--jade);flex:0 0 auto}
+.pempty{padding:16px 13px;color:var(--faint);font-size:.84rem;text-align:center}
+/* 邀请弹窗 */
+#inv-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(32,29,22,.55);
+  align-items:center;justify-content:center}
+#inv-box{background:var(--paper);border:2px solid var(--seal);border-radius:10px;padding:24px 30px;
+  text-align:center;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#inv-box .t{font-family:var(--kai);font-size:1.2rem;color:var(--ink);margin-bottom:8px}
+#inv-box .m{color:var(--i2);margin-bottom:18px;font-size:.95rem}
+#inv-box .b{display:flex;gap:10px;justify-content:center}
+
+header{text-align:center;padding:22px 0 12px;border-bottom:1px solid var(--line)}
+header .t{font-family:var(--kai);font-size:1.75rem;letter-spacing:.3em;color:var(--ink)}
+header .s{color:var(--faint);font-size:.86rem;margin-top:4px;letter-spacing:.08em}
+.home-link{color:var(--faint);text-decoration:none;font-size:.8rem}
+.home-link:hover{color:var(--seal)}
+
+#room-status{display:flex;gap:18px;padding:8px 0;font-size:.85rem;color:var(--faint);
+  border-bottom:1px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+.rs-item b{color:var(--i2)}
+
+input,select,button{font-family:var(--song);font-size:.94rem}
+input,select{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:6px 10px;color:var(--ink)}
+input:focus,select:focus{outline:none;border-color:var(--seal)}
+button.pri{background:var(--seal);color:var(--paper);border:0;border-radius:5px;padding:7px 16px;cursor:pointer;letter-spacing:.06em}
+button.pri:hover{filter:brightness(1.08)}
+button.pri:disabled{opacity:.4;cursor:default;filter:none}
+button.sec{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:6px 13px;cursor:pointer;color:var(--i2)}
+button.sec:hover{border-color:var(--seal);color:var(--seal)}
+button.go{background:var(--jade);color:#fff;border:0;border-radius:5px;padding:7px 20px;cursor:pointer;
+  font-family:var(--kai);letter-spacing:.12em}
+button.go:hover{filter:brightness(1.1)}
+button.go:disabled{opacity:.4;cursor:default}
+
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0}
+
+/* AI 区 */
+#ai-section{background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:13px 16px;margin:4px 0 14px}
+.divider{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
+.divider .ln{flex:1;border-top:1px solid var(--line)}
+.divider span{font-size:.82rem;color:var(--faint);white-space:nowrap}
+
+/* 桌卡 */
+.trow{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:9px;
+  transition:border-color .2s}
+.trow.mine{border-color:var(--seal);border-width:2px;background:#f0e7d4}
+.trow-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.trow .nm{font-family:var(--kai);font-size:1.05rem;color:var(--ink);min-width:86px}
+.trow .seats{flex:1;font-size:.9rem;min-width:170px}
+.seat-r{color:var(--seal);font-weight:bold}.seat-b{color:var(--ink);font-weight:bold}.seat-e{color:var(--faint)}
+.trow .acts{display:flex;gap:6px;flex-wrap:wrap}
+.trow .acts button{padding:5px 11px;font-size:.85rem}
+.trow .seats button.mini{padding:2px 9px;font-size:.78rem;background:var(--paper);
+  border:1px solid var(--jade);border-radius:4px;color:var(--jade);cursor:pointer;margin-left:4px}
+.trow .seats button.mini:hover{background:var(--jade);color:#fff}
+.tag{font-size:.72rem;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--faint);white-space:nowrap}
+.tag.mine-tag{background:var(--seal);color:#fff;border-color:var(--seal)}
+.empty-hint{text-align:center;padding:32px 0;color:var(--faint);border:1px dashed var(--line);border-radius:6px}
+
+/* 桌内展开区（对局设置 + 开始） */
+.trow-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.trow.mine.both .trow-detail{display:block}
+.opt-line{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;font-size:.88rem}
+.opt-line label.lb{color:var(--faint);min-width:60px}
+.opt-line select{padding:4px 8px;font-size:.86rem}
+.start-line{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.ready-mark{font-size:.85rem;color:var(--jade)}
+.hint-txt{font-size:.84rem;color:var(--faint);flex:1}
+
+/* 大厅聊天 */
+#lobby-chat{background:var(--p2);border:1px solid var(--line);border-radius:8px;margin-top:20px;overflow:hidden}
+#lc-head{padding:8px 14px;border-bottom:1px solid var(--line);font-family:var(--kai);
+  font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:8px}
+#lc-log{height:150px;overflow-y:auto;padding:9px 14px;font-size:.87rem;line-height:1.7}
+#lc-log .who{font-weight:bold;color:var(--seal)}
+#lc-log .sys{color:var(--faint);font-style:italic;font-size:.82rem}
+#lc-in{display:flex;gap:6px;padding:8px;border-top:1px solid var(--line)}
+#lc-in input{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="t">象棋室</div>
+  <div class="s">在线对弈 · 人机切磋 · 观战</div>
+</header>
+
+<div id="room-status">
+  <div class="rs-item">棋桌：<b id="rs-tables">0</b></div>
+  <div class="rs-item">对局中：<b id="rs-playing">0</b></div>
+  <div class="rs-item">候棋中：<b id="rs-waiting">0</b></div>
+  <div class="rs-item">在厅：<b id="rs-online">0</b> 人</div>
+  <div class="rs-item" id="rs-names" style="flex:1;min-width:200px"></div>
+</div>
+
+<div class="bar">
+  <label style="color:var(--faint);font-size:.9rem">你的称呼</label>
+  <input id="my-name" maxlength="14" placeholder="如：山人" style="width:110px">
+  <span style="flex:1"></span>
+  <input id="t-name" maxlength="18" placeholder="棋桌名（可空）" style="width:140px">
+  <button class="pri" id="btn-create">开一桌</button>
+</div>
+
+<div id="tables"><div class="empty-hint">正在连接棋室…</div></div>
+
+<!-- 大厅聊天 -->
+<div id="lobby-chat">
+  <div id="lc-head">厅内闲聊 <span style="color:var(--faint);font-size:.78rem;font-family:var(--song)">（约人、商量对局都可在此说）</span></div>
+  <div id="lc-log"></div>
+  <div id="lc-in">
+    <input id="lc-msg" maxlength="150" placeholder="说点什么…" autocomplete="off">
+    <button class="sec" id="lc-send">发送</button>
+  </div>
+</div>
+</div><!-- /col-left -->
+
+<aside class="col-right">
+  <div class="panel">
+    <div class="panel-hd">在厅棋友 <span class="cnt" id="uc">0</span></div>
+    <div class="plist" id="user-list"><div class="pempty">正在载入…</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-hd">电脑棋手 <span class="cnt">随时应战</span></div>
+    <div class="plist" id="ai-list"></div>
+  </div>
+</aside>
+</div><!-- /main-grid -->
+</div>
+
+<div id="inv-modal"><div id="inv-box">
+  <div class="t">对局邀请</div>
+  <div class="m" id="inv-msg"></div>
+  <div class="b">
+    <button class="pri" id="inv-yes">接受</button>
+    <button class="sec" id="inv-no">谢绝</button>
+  </div>
+</div></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+var $=function(i){return document.getElementById(i);};
+var socket=io();
+
+var myPID=sessionStorage.getItem('lsz_pid');
+if(!myPID){ myPID='p'+Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('lsz_pid',myPID); }
+$('my-name').value=localStorage.getItem('lsz_name')||'';
+$('my-name').addEventListener('change',function(){ localStorage.setItem('lsz_name',$('my-name').value.trim()); });
+function myName(){ return ($('my-name').value.trim())||('访客'+myPID.slice(-4)); }
+function aiPref(){ return parseInt(localStorage.getItem('lsz_ailv'))||6; }
+function setAiPref(l){ localStorage.setItem('lsz_ailv',l); }
+
+var myTable=null, mySeat=null;      // 我坐在哪张桌、什么位置
+var lastList=[];
+
+// ── 连接 ──
+socket.on('connect', function(){
+  socket.emit('lobby:enter',{ name:myName(), playerId:myPID });
+  if(myTable&&mySeat) socket.emit('table:join',{tableId:myTable,seat:mySeat,name:myName(),playerId:myPID});
+});
+socket.on('lobby:list', function(list){ lastList=list; renderTables(list); updateStatus(list); });
+socket.on('lobby:online', function(d){
+  var n = (typeof d==='object') ? d.count : d;
+  var names = (typeof d==='object' && d.names) ? d.names : [];
+  $('rs-online').textContent = n;
+  // 大厅显示所有人的名字
+  $('rs-names').innerHTML = names.length
+    ? '<span style="color:var(--faint)">厅内：</span>' + names.map(function(x){
+        return '<span style="color:var(--i2)">'+esc(x)+'</span>'; }).join('、')
+    : '';
+});
+socket.on('lobby:chat', function(m){ addLobbyChat(m); });
+
+// 在厅棋友名单
+socket.on('lobby:users', function(list){ renderUsers(list); });
+
+// 收到邀请
+var pendingInvite=null;
+socket.on('invite:recv', function(d){
+  pendingInvite=d.inviteId;
+  $('inv-msg').innerHTML='<b style="color:var(--seal)">'+esc(d.fromName)+'</b> 邀请你对弈';
+  $('inv-modal').style.display='flex';
+});
+socket.on('invite:declined', function(d){
+  addLobbyChat({sys:true,text:(d.name||'对方')+' 谢绝了你的邀请'});
+});
+socket.on('invite:gone', function(){ addLobbyChat({sys:true,text:'该邀请已失效'}); });
+
+$('inv-yes').onclick=function(){
+  if(pendingInvite) socket.emit('invite:accept',{inviteId:pendingInvite});
+  pendingInvite=null; $('inv-modal').style.display='none';
+};
+$('inv-no').onclick=function(){
+  if(pendingInvite) socket.emit('invite:decline',{inviteId:pendingInvite});
+  pendingInvite=null; $('inv-modal').style.display='none';
+};
+
+// 渲染在厅棋友
+function renderUsers(list){
+  var box=$('user-list');
+  $('uc').textContent=(list?list.length:0)+' 人';
+  if(!list||!list.length){ box.innerHTML='<div class="pempty">厅内暂无他人</div>'; return; }
+  box.innerHTML='';
+  list.forEach(function(u){
+    var isMe=(u.pid===myPID);
+    var el=document.createElement('div');
+    el.className='prow'+(isMe?' me':'');
+    var busy=(u.status!=='在厅');
+    el.innerHTML='<span class="pn">'+esc(u.name)+(isMe?'（我）':'')+'</span>'
+      +'<span class="pst'+(busy?' busy':'')+'">'+esc(u.status||'')+'</span>'
+      +(isMe||busy?'':'<button data-pid="'+esc(u.pid)+'">邀请</button>');
+    var b=el.querySelector('button');
+    if(b) b.onclick=function(){
+      socket.emit('invite:send',{toPid:u.pid},function(res){
+        if(res&&res.ok){ addLobbyChat({sys:true,text:'已向 '+u.name+' 发出邀请，等待回应…'}); }
+        else alert((res&&res.err)||'邀请失败');
+      });
+    };
+    box.appendChild(el);
+  });
+}
+
+// 渲染常驻 AI（各等级）
+function renderAI(){
+  var box=$('ai-list');
+  var lv=[{l:1,n:'新手'},{l:3,n:'业余'},{l:4,n:'棋手'},{l:5,n:'高手'},
+          {l:6,n:'棋协大师'},{l:7,n:'大师'},{l:8,n:'特级大师'},{l:9,n:'引擎巅峰'}];
+  box.innerHTML='';
+  lv.forEach(function(x){
+    var el=document.createElement('div');
+    el.className='prow ai';
+    el.innerHTML='<span class="ai-dot"></span>'
+      +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
+      +'<button>对弈</button>';
+    el.querySelector('button').onclick=function(){
+      setAiPref(x.l);                     // 记住选择，桌行「和电脑下」沿用
+      socket.emit('lobby:playAI',{level:x.l},function(res){
+        if(res&&res.ok){
+          location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
+            +'&seat=red&name='+encodeURIComponent(myName());
+        } else alert((res&&res.err)||'暂时无法开始');
+      });
+    };
+    box.appendChild(el);
+  });
+}
+renderAI();
+// 对局设置变更 → 立即重绘（不必等下一次 lobby:list）
+socket.on('table:options', function(){ socket.emit('lobby:enter',{name:myName(),playerId:myPID}); });
+
+socket.on('table:state', function(st){
+  if(st.tableId===myTable){ mySeat=st.seat; }
+});
+// 双方都点开始 → 进棋盘
+socket.on('game:start', function(data){
+  if(!myTable||!mySeat||mySeat==='spectate') return;
+  var o=data.options||{};
+  var q='?table='+encodeURIComponent(myTable)+'&seat='+encodeURIComponent(mySeat)+'&name='+encodeURIComponent(myName());
+  if(o.type==='timed') q+='&perMove='+(o.perMove||0)+'&total='+(o.total||0);
+  if(o.handicap) q+='&handicap='+encodeURIComponent(o.handicap);
+  location.href='xiangqi/'+q;
+});
+
+// ── 操作 ──
+$('btn-create').onclick=function(){
+  socket.emit('table:create',{name:$('t-name').value.trim()},function(res){
+    if(res&&res.ok){ sit(res.id,'red'); $('t-name').value=''; }
+  });
+};
+
+var sitting=false;
+function sit(id,seat){
+  if(sitting) return;              // 防连点重复入座
+  sitting=true; setTimeout(function(){ sitting=false; },800);
+  myTable=id; mySeat=seat;
+  socket.emit('table:join',{tableId:id,seat:seat,name:myName(),playerId:myPID},function(res){
+    if(res&&!res.ok){ alert(res.err||'无法入座'); myTable=null; mySeat=null; }
+    else if(res){
+      mySeat=res.seat;
+      if(res.taken){ alert('该座位已被占，你已转为观战'); }
+      if(res.seat==='spectate'){ myTable=null; mySeat=null; }   // 观战不算"我的桌"
+    }
+    renderTables(lastList);
+  });
+}
+function leave(){
+  if(!myTable) return;
+  socket.emit('table:leave');
+  myTable=null; mySeat=null;
+  renderTables(lastList);
+}
+function watch(id){ location.href='xiangqi/?table='+encodeURIComponent(id)+'&seat=spectate&name='+encodeURIComponent(myName()); }
+
+// 观战直接进棋盘；坐下留在大厅
+function sendOptions(){
+  if(!myTable) return;
+  socket.emit('table:options',{
+    type: $('o-type')?$('o-type').value:'free',
+    perMove: $('o-per')?parseInt($('o-per').value)||0:0,
+    total: $('o-tot')?parseInt($('o-tot').value)||0:0,
+    handicap: $('o-han')?$('o-han').value:''
+  });
+}
+function toggleReady(){
+  if(!myTable) return;
+  var t=lastList.filter(function(x){return x.id===myTable;})[0];
+  if(!t||!t.red||!t.black){ alert('等对方入座后再点开始'); return; }
+  var iAmReady = t.ready && t.ready[mySeat];
+  socket.emit(iAmReady?'table:unready':'table:ready');
+}
+
+// ── 渲染 ──
+function renderTables(list){
+  var box=$('tables');
+  if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「电脑棋手」对弈，也可等人来下。</div>'; return; }
+  box.innerHTML='';
+  list.forEach(function(t){
+    var mine = (t.id===myTable);
+    var bothSeated = !!(t.red && t.black);
+    var el=document.createElement('div');
+    el.className='trow'+(mine?' mine':'')+(bothSeated?' both':'');
+
+    var r = t.red   ? '<span class="seat-r">● 红 '+esc(t.red)+'</span>'   : '<span class="seat-e">○ 红 空位</span>';
+    var b = t.black ? '<span class="seat-b">● 黑 '+esc(t.black)+'</span>' : '<span class="seat-e">○ 黑 空位</span>';
+    // 黑位空着就在它后面直接给「和电脑下」，一键开局（棋力用右栏选定的）
+    var aiBtn = (!t.black && !t.aiSeat && t.status!=='playing' && t.status!=='over')
+      ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
+    var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
+    var stag = t.status==='playing'?'<span class="tag">对局中</span>'
+             : t.status==='over'?'<span class="tag">已结束</span>':'<span class="tag">候棋中</span>';
+    var mtag = mine?'<span class="tag mine-tag">你在此桌</span>':'';
+
+    var acts='';
+    if(mine){
+      acts='<button class="sec" data-act="leave">离桌</button>';
+      // 对面空着 → 可邀请电脑；已有AI → 可请其离座
+      var oppC = (mySeat==='red'?'black':'red');
+      if(t.aiSeat===oppC){
+        acts='<button class="sec" data-act="dismissai">请电脑离座</button>'+acts;
+      }
+    } else {
+      if(!t.red   && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="red">坐红</button>';
+      if(!t.black && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="black">坐黑</button>';
+      acts+='<button class="sec" data-act="watch">观战</button>';
+    }
+
+    var detail='';
+    if(mine && bothSeated){
+      var rdy=t.ready||{}, both=!!(t.red&&t.black);
+      var meReady = rdy[mySeat];
+      var oppSeat = mySeat==='red'?'black':'red';
+      var oppReady= rdy[oppSeat];
+      var o=t.options||{type:'free',perMove:0,total:0,handicap:''};
+      var isRed = (mySeat==='red');
+      detail='<div class="trow-detail">'
+        +'<div class="opt-line"><label class="lb">对弈方式</label>'
+          +'<select id="o-type" '+(isRed?'':'disabled')+'>'
+            +'<option value="free"'+(o.type==='free'?' selected':'')+'>自由（不限时）</option>'
+            +'<option value="timed"'+(o.type==='timed'?' selected':'')+'>计时对弈</option>'
+          +'</select>'
+          +'<label class="lb" style="margin-left:8px">让子</label>'
+          +'<select id="o-han" '+(isRed?'':'disabled')+'>'
+            +'<option value=""'+(!o.handicap?' selected':'')+'>无</option>'
+            +'<option value="horse1"'+(o.handicap==='horse1'?' selected':'')+'>红让单马</option>'
+            +'<option value="horse2"'+(o.handicap==='horse2'?' selected':'')+'>红让双马</option>'
+            +'<option value="cannon1"'+(o.handicap==='cannon1'?' selected':'')+'>红让单炮</option>'
+            +'<option value="rook1"'+(o.handicap==='rook1'?' selected':'')+'>红让单车</option>'
+          +'</select></div>'
+        +(o.type==='timed'
+          ?'<div class="opt-line"><label class="lb">每步</label>'
+            +'<select id="o-per" '+(isRed?'':'disabled')+'>'
+              +'<option value="0"'+(o.perMove===0?' selected':'')+'>不限</option>'
+              +'<option value="30"'+(o.perMove===30?' selected':'')+'>30秒</option>'
+              +'<option value="60"'+(o.perMove===60?' selected':'')+'>60秒</option>'
+              +'<option value="180"'+(o.perMove===180?' selected':'')+'>3分</option>'
+            +'</select>'
+            +'<label class="lb" style="margin-left:8px">全局</label>'
+            +'<select id="o-tot" '+(isRed?'':'disabled')+'>'
+              +'<option value="0"'+(o.total===0?' selected':'')+'>不限</option>'
+              +'<option value="600"'+(o.total===600?' selected':'')+'>10分</option>'
+              +'<option value="1200"'+(o.total===1200?' selected':'')+'>20分</option>'
+              +'<option value="1800"'+(o.total===1800?' selected':'')+'>30分</option>'
+            +'</select></div>'
+          :'')
+        +'<div class="start-line">'
+          +'<button class="go" data-act="ready" '+(both?'':'disabled')+'>'+(meReady?'取消开始':'开始对局')+'</button>'
+          +'<span class="ready-mark">'+(meReady?'✓ 你已就绪　':'')+(oppReady?'✓ 对方已就绪':'')+'</span>'
+          +'<span class="hint-txt">'+(both?(meReady&&oppReady?'即将进入棋盘…':'双方都点「开始对局」即进入棋盘'):'等待对方入座，可在下方闲聊招呼')+'</span>'
+        +'</div>'
+        +(isRed?'':'<div style="font-size:.8rem;color:var(--faint);margin-top:6px">对局形式由红方设定</div>')
+      +'</div>';
+    }
+
+    var waitTip = (mine && !bothSeated && !t.aiSeat)
+      ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--faint)">你已坐好，等待对方入座 —— 可在右侧「在厅棋友」邀请，或在本行约电脑</div>'
+      : '';
+    el.innerHTML='<div class="trow-main">'
+      +'<div class="nm">'+esc(t.name)+'</div>'
+      +'<div class="seats">'+r+'　·　'+b+aiBtn+obs+'</div>'
+      +'<div style="display:flex;gap:5px;align-items:center">'+mtag+stag+'</div>'
+      +'<div class="acts">'+acts+'</div>'
+      +'</div>'+waitTip+detail;
+
+    el.querySelectorAll('[data-act]').forEach(function(btn){
+      var a=btn.getAttribute('data-act');
+      if(a==='sit')        btn.onclick=function(){ sit(t.id, btn.getAttribute('data-seat')); };
+      else if(a==='leave') btn.onclick=leave;
+      else if(a==='watch') btn.onclick=function(){ watch(t.id); };
+      else if(a==='ready') btn.onclick=toggleReady;
+      else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
+      else if(a==='playai') btn.onclick=function(){
+        socket.emit('lobby:playAI',{level:aiPref(),tableId:t.id},function(res){
+          if(res&&res.ok){
+            location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
+              +'&seat=red&name='+encodeURIComponent(myName());
+          } else alert((res&&res.err)||'暂时无法开始');
+        });
+      };
+    });
+    ['o-type','o-per','o-tot','o-han'].forEach(function(id){
+      var s=el.querySelector('#'+id);
+      if(s) s.onchange=sendOptions;
+    });
+    box.appendChild(el);
+  });
+}
+
+function updateStatus(list){
+  var p=0,w=0;
+  list.forEach(function(t){ if(t.status==='playing')p++; else if(t.status==='waiting')w++; });
+  $('rs-tables').textContent=list.length+' 张';
+  $('rs-playing').textContent=p+' 桌';
+  $('rs-waiting').textContent=w+' 桌';
+}
+
+// ── 大厅聊天 ──
+function sendLobbyChat(){
+  var v=$('lc-msg').value.trim();
+  if(v){ socket.emit('lobby:chat',{text:v,name:myName()}); $('lc-msg').value=''; }
+}
+$('lc-send').onclick=sendLobbyChat;
+$('lc-msg').addEventListener('keydown',function(e){ if(e.key==='Enter')sendLobbyChat(); });
+function addLobbyChat(m){
+  var log=$('lc-log');
+  var d=document.createElement('div');
+  if(m.sys) { d.className='sys'; d.textContent='—— '+m.text+' ——'; }
+  else d.innerHTML='<span class="who">'+esc(m.name)+'</span>：'+esc(m.text);
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+  while(log.children.length>80) log.removeChild(log.firstChild);
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+</script>
+</body>
+</html>
