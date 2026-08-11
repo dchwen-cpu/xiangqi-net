@@ -103,6 +103,7 @@ button.go:disabled{opacity:.4;cursor:default}
 .seat-btn.red:hover{border:1px solid var(--seal);background:var(--seal);color:#fff}
 .seat-btn.blk:hover{border:1px solid var(--ink);background:var(--ink);color:#fff}
 .tag{font-size:.72rem;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--faint);white-space:nowrap}
+.tagwrap{display:inline-flex;gap:5px;align-items:center;margin-left:8px}
 .tag.mine-tag{background:var(--seal);color:#fff;border-color:var(--seal)}
 .empty-hint{text-align:center;padding:32px 0;color:var(--faint);border:1px dashed var(--line);border-radius:6px}
 
@@ -145,10 +146,8 @@ button.go:disabled{opacity:.4;cursor:default}
 
 <div class="bar">
   <label style="color:var(--faint);font-size:.9rem">你的称呼</label>
-  <input id="my-name" maxlength="14" placeholder="如：山人" style="width:110px">
-  <span style="flex:1"></span>
-  <input id="t-name" maxlength="18" placeholder="棋桌名（可空）" style="width:140px">
-  <button class="pri" id="btn-create">开一桌</button>
+  <input id="my-name" maxlength="14" placeholder="如：山人" style="width:130px">
+  <span style="color:var(--faint);font-size:.84rem">改名后在右侧「在厅棋友」中可见，便于他人邀请</span>
 </div>
 
 <div id="tables"><div class="empty-hint">正在连接棋室…</div></div>
@@ -311,11 +310,6 @@ socket.on('game:start', function(data){
 });
 
 // ── 操作 ──
-$('btn-create').onclick=function(){
-  socket.emit('table:create',{name:$('t-name').value.trim()},function(res){
-    if(res&&res.ok){ sit(res.id,'red'); $('t-name').value=''; }
-  });
-};
 
 var sitting=false;
 function sit(id,seat){
@@ -361,7 +355,7 @@ function toggleReady(){
 // ── 渲染 ──
 function renderTables(list){
   var box=$('tables');
-  if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「电脑棋手」对弈，也可等人来下。</div>'; return; }
+  if(!list||!list.length){ box.innerHTML='<div class="empty-hint">正在载入棋桌…</div>'; return; }
   box.innerHTML='';
   list.forEach(function(t){
     var mine = (t.id===myTable);
@@ -450,8 +444,8 @@ function renderTables(list){
       : '';
     el.innerHTML='<div class="trow-main">'
       +'<div class="nm">'+esc(t.name)+'</div>'
-      +'<div class="seats">'+r+'　·　'+b+aiBtn+watchBtn+obs+'</div>'
-      +'<div style="display:flex;gap:5px;align-items:center">'+mtag+stag+'</div>'
+      +'<div class="seats">'+r+'　·　'+b+aiBtn+watchBtn
+        +' <span class="tagwrap">'+mtag+stag+'</span>'+obs+'</div>'
       +'<div class="acts">'+acts+'</div>'
       +'</div>'+waitTip+detail;
 
