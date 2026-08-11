@@ -467,7 +467,21 @@
         'background:#7a5c14;color:#fff;font:13px "Songti SC","SimSun",serif}',
       '#net-req-bar button{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);',
         'border-radius:4px;color:#fff;padding:3px 10px;cursor:pointer;font:13px "Songti SC",serif}',
-      '@media(max-width:580px){#net-side{top:auto;bottom:130px;left:0;right:0;width:auto;height:160px;border-left:0;border-top:1px solid #cabd9f}#net-bar{bottom:160px}body{padding-top:42px!important;padding-bottom:216px!important}}'
+      // 手机：聊天做成底部抽屉，默认收起，点「聊天」才滑出，不占棋盘空间
+      '@media(max-width:580px){',
+        '#net-side{top:auto;left:0;right:0;bottom:0;width:auto;height:56vh;',
+          'border-left:0;border-top:2px solid #9d2c21;border-radius:12px 12px 0 0;',
+          'transform:translateY(100%);transition:transform .25s ease;',
+          'box-shadow:0 -6px 20px rgba(0,0,0,.25)}',
+        '#net-side.open{transform:translateY(0)}',
+        '#net-bar{bottom:0}',
+        'body{padding-top:42px!important;padding-bottom:56px!important}',
+        '#nb-chat{display:inline-block!important}',
+        '#net-side-hd{cursor:pointer}',
+      '}',
+      '#nb-chat{display:none}',
+      '#nb-unread{display:none;background:#9d2c21;color:#fff;border-radius:9px;',
+        'padding:0 5px;font-size:11px;margin-left:3px}'
     ].join('');
     document.head.appendChild(st);
 
@@ -481,12 +495,13 @@
       +'<a href="../" id="net-exit">退出</a>';
 
     var side=document.createElement('div'); side.id='net-side';
-    side.innerHTML='<div id="net-side-hd">对局聊天</div>'
+    side.innerHTML='<div id="net-side-hd">对局聊天　<span style="font-size:.75rem;color:#8a8069">（点此收起）</span></div>'
       +'<div id="net-chat-log"></div>'
       +'<div id="net-chat-in"><input id="net-msg" maxlength="200" placeholder="说点什么…" autocomplete="off"><button id="net-send">发</button></div>';
 
     var bar=document.createElement('div'); bar.id='net-bar';
-    bar.innerHTML='<button id="nb-undo">悔棋请求</button>'
+    bar.innerHTML='<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
+      +'<button id="nb-undo">悔棋请求</button>'
       +'<button id="nb-draw">求和</button>'
       +'<button id="nb-flip">↕ 翻转</button>'
       +'<button id="nb-review">🔍 复盘</button>'
@@ -562,6 +577,26 @@
     document.getElementById('net-exit').onclick=function(e){
       if(!confirm('确认退出当前对局？')){ e.preventDefault(); }
     };
+    // 手机端聊天抽屉
+    var chatOpen=false, unread=0;
+    function toggleChat(open){
+      var side=document.getElementById('net-side');
+      chatOpen=(open===undefined)?!chatOpen:open;
+      if(side) side.classList.toggle('open',chatOpen);
+      if(chatOpen){ unread=0; var u=document.getElementById('nb-unread'); if(u) u.style.display='none'; }
+    }
+    window.__netBumpUnread=function(){
+      if(chatOpen) return;
+      if(window.innerWidth>580) return;
+      unread++;
+      var u=document.getElementById('nb-unread');
+      if(u){ u.textContent=unread; u.style.display='inline-block'; }
+    };
+    document.getElementById('nb-chat').onclick=function(){ toggleChat(); };
+    document.getElementById('net-side-hd').onclick=function(){
+      if(window.innerWidth<=580) toggleChat(false);
+    };
+
     // 聊天
     function sendChat(){ var v=(elChatIn.value||'').trim(); if(v){ socket.emit('chat',{text:v}); elChatIn.value=''; } }
     document.getElementById('net-send').onclick=sendChat;
@@ -637,17 +672,22 @@
   }
   // 对局结束面板：再来一局 / 返回大厅
   function showEndPanel(reason){
+    // 延迟弹出：先让棋盘播完"祝贺取得胜利"的画面
+    clearTimeout(showEndPanel._t);
+    showEndPanel._t=setTimeout(function(){ buildEndPanel(reason); }, 2600);
+  }
+  function buildEndPanel(reason){
     var old=document.getElementById('net-end-panel');
     if(old) old.remove();
     var p=document.createElement('div');
     p.id='net-end-panel';
-    p.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);'
-      +'z-index:2147483647;background:#ece3d0;border:2px solid #9d2c21;border-radius:10px;'
-      +'padding:26px 34px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.4);'
-      +'font-family:"Songti SC","SimSun",serif;min-width:260px';
-    p.innerHTML='<div style="font-family:\'Kaiti SC\',\'楷体\',serif;font-size:1.35rem;'
-      +'color:#201d16;letter-spacing:.1em;margin-bottom:6px">对局结束</div>'
-      +'<div style="color:#9d2c21;font-size:1rem;margin-bottom:20px">'+esc(reason||'')+'</div>'
+    // 放在底部控制栏上方，不遮住棋盘中央的胜利画面
+    p.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);'
+      +'z-index:2147483647;background:rgba(236,227,208,.97);border:2px solid #9d2c21;'
+      +'border-radius:10px;padding:14px 22px;text-align:center;'
+      +'box-shadow:0 6px 24px rgba(0,0,0,.35);'
+      +'font-family:"Songti SC","SimSun",serif;min-width:240px';
+    p.innerHTML='<div style="color:#9d2c21;font-size:.98rem;margin-bottom:12px">'+esc(reason||'对局结束')+'</div>'
       +'<div style="display:flex;gap:10px;justify-content:center">'
         +(isSpectator?'':'<button id="np-again" style="background:#4a7c59;color:#fff;border:0;'
           +'border-radius:6px;padding:10px 22px;cursor:pointer;font-family:\'Kaiti SC\',serif;'
@@ -664,6 +704,7 @@
     };
   }
   function hideEndPanel(){
+    clearTimeout(showEndPanel._t);
     var p=document.getElementById('net-end-panel');
     if(p) p.remove();
   }

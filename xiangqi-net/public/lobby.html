@@ -86,7 +86,7 @@ button.go:disabled{opacity:.4;cursor:default}
 
 /* 桌内展开区（对局设置 + 开始） */
 .trow-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
-.trow.mine .trow-detail{display:block}
+.trow.mine.both .trow-detail{display:block}
 .opt-line{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;font-size:.88rem}
 .opt-line label.lb{color:var(--faint);min-width:60px}
 .opt-line select{padding:4px 8px;font-size:.86rem}
@@ -333,14 +333,22 @@ function toggleReady(){
 }
 
 // ── 渲染 ──
+// 每桌行尾的电脑棋力选择器
+function aiPicker(){
+  var lv=[1,2,3,4,5,6,7,8,9], nm={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'};
+  return '<select class="ailv-pre" style="padding:4px 5px;font-size:.8rem">'
+    + lv.map(function(l){ return '<option value="'+l+'"'+(l===6?' selected':'')+'>'+l+'级 '+nm[l]+'</option>'; }).join('')
+    + '</select>';
+}
 function renderTables(list){
   var box=$('tables');
   if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「电脑棋手」对弈，也可等人来下。</div>'; return; }
   box.innerHTML='';
   list.forEach(function(t){
     var mine = (t.id===myTable);
+    var bothSeated = !!(t.red && t.black);
     var el=document.createElement('div');
-    el.className='trow'+(mine?' mine':'');
+    el.className='trow'+(mine?' mine':'')+(bothSeated?' both':'');
 
     var r = t.red   ? '<span class="seat-r">● 红 '+esc(t.red)+'</span>'   : '<span class="seat-e">○ 红 空位</span>';
     var b = t.black ? '<span class="seat-b">● 黑 '+esc(t.black)+'</span>' : '<span class="seat-e">○ 黑 空位</span>';
@@ -358,21 +366,20 @@ function renderTables(list){
       if(t.aiSeat===oppC){
         acts='<button class="sec" data-act="dismissai">请AI离座</button>'+acts;
       } else if(!oppTaken){
-        var lvOpts=[1,2,3,4,5,6,7,8,9].map(function(l){
-          var nm={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'}[l];
-          return '<option value="'+l+'"'+(l===6?' selected':'')+'>'+l+'级 '+nm+'</option>';
-        }).join('');
-        acts='<select class="ailv-pre" style="padding:5px 6px;font-size:.82rem">'+lvOpts+'</select>'
-            +'<button class="sec" data-act="inviteai">邀请电脑</button>'+acts;
+        acts=aiPicker()+'<button class="sec" data-act="inviteai">邀请电脑</button>'+acts;
       }
     } else {
       if(!t.red   && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="red">坐红</button>';
       if(!t.black && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="black">坐黑</button>';
+      // 空桌：直接在本桌约电脑，不必先坐下
+      if(!t.red && !t.black && t.status!=='playing' && !t.aiSeat){
+        acts+=aiPicker()+'<button class="sec" data-act="playai">约电脑</button>';
+      }
       acts+='<button class="sec" data-act="watch">观战</button>';
     }
 
     var detail='';
-    if(mine){
+    if(mine && bothSeated){
       var rdy=t.ready||{}, both=!!(t.red&&t.black);
       var meReady = rdy[mySeat];
       var oppSeat = mySeat==='red'?'black':'red';
@@ -428,12 +435,15 @@ function renderTables(list){
       +'</div>';
     }
 
+    var waitTip = (mine && !bothSeated && !t.aiSeat)
+      ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--faint)">你已坐好，等待对方入座 —— 可在右侧「在厅棋友」邀请，或在本行约电脑</div>'
+      : '';
     el.innerHTML='<div class="trow-main">'
       +'<div class="nm">'+esc(t.name)+'</div>'
       +'<div class="seats">'+r+'　·　'+b+obs+'</div>'
       +'<div style="display:flex;gap:5px;align-items:center">'+mtag+stag+'</div>'
       +'<div class="acts">'+acts+'</div>'
-      +'</div>'+detail;
+      +'</div>'+waitTip+detail;
 
     el.querySelectorAll('[data-act]').forEach(function(btn){
       var a=btn.getAttribute('data-act');
@@ -447,6 +457,16 @@ function renderTables(list){
         socket.emit('table:inviteAI',{level:lv});
       };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
+      else if(a==='playai') btn.onclick=function(){
+        var sel=el.querySelector('.ailv-pre');
+        var lv=sel?(parseInt(sel.value)||6):6;
+        socket.emit('lobby:playAI',{level:lv,tableId:t.id},function(res){
+          if(res&&res.ok){
+            location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
+              +'&seat=red&name='+encodeURIComponent(myName());
+          } else alert((res&&res.err)||'暂时无法开始');
+        });
+      };
     });
     var aisel=el.querySelector('#o-ailv');
     if(aisel) aisel.onchange=function(){ socket.emit('table:inviteAI',{level:parseInt(aisel.value)||6}); };
