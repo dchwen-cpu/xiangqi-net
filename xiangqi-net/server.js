@@ -278,8 +278,8 @@ io.on('connection', socket => {
     t.seats.black={pid,name:socket.data.name||'访客',sid:socket.id};
     socket.data.tableId=t.id; socket.data.seat='black';
     socket.join(t.id);
-    setUserStatus(pid,'对局中');
-    setUserStatus(inv.fromPid,'对局中');
+    setUserStatus(pid,'已坐下');
+    setUserStatus(inv.fromPid,'已坐下');
     sendState(socket,t,'black');
     broadcastRoom(t); pushLobby(); pushUsers();
     io.to(t.id).emit('chat',{name:'系统',seat:'',text:'双方已入座，点「开始对局」即可开始',ts:Date.now()});
@@ -377,8 +377,10 @@ io.on('connection', socket => {
 
     socket.data.tableId=t.id; socket.data.seat=seat; socket.data.pid=pid; socket.data.name=name;
     socket.join(t.id);
-    if(users.has(pid)){ users.get(pid).sid=socket.id; users.get(pid).name=name; users.get(pid).status = (seat==='spectate')?'观战':'对局中'; pushUsers(); }
-    else { users.set(pid,{pid,name,sid:socket.id,status:(seat==='spectate')?'观战':'对局中'}); pushUsers(); }
+    // 入座只是"坐下"，真正开局(点▶开始)后才算"对局中"；重连进已在进行的对局则直接显示对局中
+    const seatStatus = (seat==='spectate') ? '观战' : (t.status==='playing' ? '对局中' : '已坐下');
+    if(users.has(pid)){ users.get(pid).sid=socket.id; users.get(pid).name=name; users.get(pid).status=seatStatus; pushUsers(); }
+    else { users.set(pid,{pid,name,sid:socket.id,status:seatStatus}); pushUsers(); }
 
     sendState(socket,t,seat);
     broadcastRoom(t);
@@ -477,6 +479,8 @@ io.on('connection', socket => {
     if(!redOK || !blackOK) return;          // 对面还空着，不能开始
     t.ready.red=true; t.ready.black=true;   // 一人点击即视为双方就绪
     t.status='playing';
+    if(t.seats.red)   setUserStatus(t.seats.red.pid,'对局中');
+    if(t.seats.black) setUserStatus(t.seats.black.pid,'对局中');
     io.to(t.id).emit('game:start', { options:{...t.options} });
     broadcastRoom(t); pushLobby();
   });
@@ -537,6 +541,17 @@ io.on('connection', socket => {
     if(!t||!t.moves.length)return;
     t.moves.pop(); resyncAll(t);
     io.to(t.id).emit('chat',{name:'系统',seat:'',text:'双方同意，悔棋一手',ts:Date.now()});
+    pushLobby();
+  });
+  // 与电脑对弈：一次悔两步（撤掉电脑的应招 + 自己那一步），一键回到自己可重新落子的局面
+  socket.on('undo:ai', ()=>{
+    const t=tables.get(socket.data.tableId);
+    if(!t||!t.aiSeat||!t.moves.length) return;
+    if(!colorBySid(t,socket.id)) return;
+    t.moves.pop();
+    if(t.moves.length) t.moves.pop();
+    resyncAll(t);
+    io.to(t.id).emit('chat',{name:'系统',seat:'',text:'已悔棋一手',ts:Date.now()});
     pushLobby();
   });
   socket.on('draw:request', ()=>{ const t=tables.get(socket.data.tableId); if(!t||!colorBySid(t,socket.id))return; socket.to(t.id).emit('draw:request'); });
