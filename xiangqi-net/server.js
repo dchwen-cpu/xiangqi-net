@@ -15,11 +15,23 @@ app.use((req,res,next)=>{
 });
 
 app.use(express.static(path.join(__dirname,'public'), {
+  etag: true,
   setHeaders: (res, fp) => {
     // 正确的 MIME，否则浏览器拒绝执行/实例化
     if (fp.endsWith('.wasm')) res.setHeader('Content-Type','application/wasm');
     if (fp.endsWith('.nnue')) res.setHeader('Content-Type','application/octet-stream');
     if (fp.endsWith('.js'))   res.setHeader('Content-Type','text/javascript; charset=utf-8');
+
+    // 经常改动的文件：每次都回服务器核对，避免改了代码看到的还是旧版
+    // （no-cache 不是"不缓存"，是"用之前必须先问服务器有没有更新"，
+    //   没更新就返回 304，几乎不耗流量）
+    if (/\.(html|js)$/.test(fp)) {
+      res.setHeader('Cache-Control','no-cache');
+    }
+    // 体积大且几乎不变的：放心长期缓存
+    else if (/\.(wasm|nnue|png|m4a|mp3)$/.test(fp)) {
+      res.setHeader('Cache-Control','public, max-age=604800');   // 7 天
+    }
   }
 }));
 app.get('/', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
