@@ -64,6 +64,8 @@ app.get('/engine-check', (_,res)=>{
 
 const tables     = new Map();
 const recoTimers = new Map();
+const users      = new Map();   // pid -> {pid,name,sid,status}
+const invites    = new Map();   // inviteId -> {tableId,fromPid,toPid,ts}
 let seq = 1;
 const newId = () => 't'+(seq++).toString(36)+Date.now().toString(36).slice(-3);
 const turnOf = t => t.moves.length%2===0 ? 'r' : 'b';
@@ -154,6 +156,20 @@ function releaseElsewhere(pid, keepTableId){
     }
   }
 }
+function pushUsers(){
+  const list=[...users.values()].map(u=>({pid:u.pid,name:u.name,status:u.status}));
+  io.to('lobby').emit('lobby:users', list);
+}
+function findFreeTable(){
+  for(const t of tables.values()){
+    if(!t.seats.red && !t.seats.black && t.spectators.size===0 && !t.aiSeat) return t;
+  }
+  return null;
+}
+function setUserStatus(pid,st){
+  const u=users.get(pid);
+  if(u){ u.status=st; pushUsers(); }
+}
 function pushOnline(){
   const room=io.sockets.adapter.rooms.get('lobby');
   const names=[];
@@ -170,12 +186,95 @@ function pushOnline(){
 io.on('connection', socket => {
 
   socket.on('lobby:enter', (p)=>{
-    socket.data.tableId=null;
     if(p&&p.name) socket.data.name=String(p.name).slice(0,20);
     if(p&&p.playerId) socket.data.pid=String(p.playerId).slice(0,40);
     socket.join('lobby');
+    // 登记为在厅棋友（供他人邀请）
+    if(socket.data.pid){
+      users.set(socket.data.pid,{
+        pid:socket.data.pid, name:socket.data.name||'访客',
+        sid:socket.id, status: socket.data.tableId?'对局中':'在厅'
+      });
+    }
     socket.emit('lobby:list', lobbyList());
-    pushOnline();
+    pushOnline(); pushUsers();
+  });
+
+  // ── 直接约 AI：不必先坐下，选好等级即刻开局 ──
+  socket.on('lobby:playAI',(p,ack)=>{
+    const lv=Math.min(9,Math.max(1,parseInt(p?.level)||6));
+    // 指定了桌号就用那张（必须是空桌），否则自动找一张
+    let t=null;
+    if(p&&p.tableId){
+      const cand=tables.get(p.tableId);
+      if(cand && !cand.seats.red && !cand.seats.black && !cand.aiSeat) t=cand;
+    }
+    if(!t) t=findFreeTable();
+    if(!t){ if(typeof ack==='function') ack({ok:false,err:'该桌已被占用，请换一张'}); return; }
+    const pid=socket.data.pid||('anon'+socket.id);
+    releaseElsewhere(pid,t.id);
+    t.seats.red={pid,name:socket.data.name||'访客',sid:socket.id};
+    t.seats.black=null;
+    t.aiSeat='black'; t.aiLevel=lv;
+    t.moves=[]; t.status='playing';
+    t.ready={red:true,black:true};
+    socket.data.tableId=t.id; socket.data.seat='red';
+    socket.join(t.id);
+    setUserStatus(pid,'对局中');
+    sendState(socket,t,'red');
+    socket.emit('game:start',{options:{...t.options},aiSeat:t.aiSeat,aiLevel:t.aiLevel});
+    pushLobby();
+    if(typeof ack==='function') ack({ok:true,tableId:t.id,seat:'red'});
+  });
+
+  // ── 邀请真人对弈 ──
+  socket.on('invite:send',(p,ack)=>{
+    const target=users.get(p&&p.toPid);
+    if(!target){ if(typeof ack==='function') ack({ok:false,err:'对方已离开'}); return; }
+    if(target.pid===socket.data.pid){ if(typeof ack==='function') ack({ok:false,err:'不能邀请自己'}); return; }
+    const t=findFreeTable();
+    if(!t){ if(typeof ack==='function') ack({ok:false,err:'暂无空桌'}); return; }
+    const pid=socket.data.pid||('anon'+socket.id);
+    releaseElsewhere(pid,t.id);
+    t.seats.red={pid,name:socket.data.name||'访客',sid:socket.id};
+    t.aiSeat=null; t.moves=[]; t.status='waiting'; t.ready=mkReady();
+    socket.data.tableId=t.id; socket.data.seat='red';
+    socket.join(t.id);
+    const inviteId='i'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    invites.set(inviteId,{tableId:t.id,fromPid:pid,toPid:target.pid,ts:Date.now()});
+    setTimeout(()=>invites.delete(inviteId),60000);      // 邀请 60 秒过期
+    io.to(target.sid).emit('invite:recv',{
+      inviteId, fromName:socket.data.name||'访客', tableName:t.name
+    });
+    sendState(socket,t,'red');
+    pushLobby(); pushUsers();
+    if(typeof ack==='function') ack({ok:true,tableId:t.id});
+  });
+
+  socket.on('invite:accept',(p)=>{
+    const inv=invites.get(p&&p.inviteId);
+    if(!inv) return;
+    invites.delete(p.inviteId);
+    const t=tables.get(inv.tableId);
+    if(!t){ socket.emit('invite:gone'); return; }
+    const pid=socket.data.pid||('anon'+socket.id);
+    releaseElsewhere(pid,t.id);
+    t.seats.black={pid,name:socket.data.name||'访客',sid:socket.id};
+    socket.data.tableId=t.id; socket.data.seat='black';
+    socket.join(t.id);
+    setUserStatus(pid,'对局中');
+    setUserStatus(inv.fromPid,'对局中');
+    sendState(socket,t,'black');
+    broadcastRoom(t); pushLobby(); pushUsers();
+    io.to(t.id).emit('chat',{name:'系统',seat:'',text:'双方已入座，点「开始对局」即可开始',ts:Date.now()});
+  });
+
+  socket.on('invite:decline',(p)=>{
+    const inv=invites.get(p&&p.inviteId);
+    if(!inv) return;
+    invites.delete(p.inviteId);
+    const from=users.get(inv.fromPid);
+    if(from) io.to(from.sid).emit('invite:declined',{name:socket.data.name||'对方'});
   });
 
   // 大厅公共聊天
@@ -200,6 +299,7 @@ io.on('connection', socket => {
     socket.leave(t.id);
     socket.data.tableId=null; socket.data.seat=null;
     socket.join('lobby');
+    setUserStatus(socket.data.pid,'在厅');
     if(t.status==='playing') t.status='waiting';
     broadcastRoom(t);
     if(!t.seats.red&&!t.seats.black&&t.spectators.size===0){ t.moves=[]; t.status='waiting'; t.ready=mkReady(); t.options=mkOptions(); t.aiSeat=null; }
@@ -261,6 +361,8 @@ io.on('connection', socket => {
 
     socket.data.tableId=t.id; socket.data.seat=seat; socket.data.pid=pid; socket.data.name=name;
     socket.join(t.id);
+    if(users.has(pid)){ users.get(pid).sid=socket.id; users.get(pid).name=name; users.get(pid).status = (seat==='spectate')?'观战':'对局中'; pushUsers(); }
+    else { users.set(pid,{pid,name,sid:socket.id,status:(seat==='spectate')?'观战':'对局中'}); pushUsers(); }
 
     sendState(socket,t,seat);
     broadcastRoom(t);
@@ -441,6 +543,14 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', ()=>{
+    // 从在厅名单移除（仅当该 pid 的当前连接就是本 socket）
+    const upid=socket.data.pid;
+    if(upid && users.get(upid) && users.get(upid).sid===socket.id){
+      setTimeout(()=>{
+        const u=users.get(upid);
+        if(u && u.sid===socket.id){ users.delete(upid); pushUsers(); }
+      }, 6000);   // 给刷新重连留缓冲
+    }
     const t=tables.get(socket.data.tableId);
     if(!t){ pushLobby(); return; }
     const color=colorBySid(t,socket.id);
