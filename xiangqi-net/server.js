@@ -204,14 +204,18 @@ io.on('connection', socket => {
   socket.on('lobby:playAI',(p,ack)=>{
     const lv=Math.min(9,Math.max(1,parseInt(p?.level)||6));
     // 指定了桌号就用那张（必须是空桌），否则自动找一张
+    const reqPid=socket.data.pid||('anon'+socket.id);
     let t=null;
     if(p&&p.tableId){
       const cand=tables.get(p.tableId);
-      if(cand && !cand.seats.red && !cand.seats.black && !cand.aiSeat) t=cand;
+      // 空桌，或桌上只有请求者自己（坐着等人时改叫电脑）
+      const onlyMe = (!cand?.seats.red || cand.seats.red.pid===reqPid)
+                  && (!cand?.seats.black || cand.seats.black.pid===reqPid);
+      if(cand && onlyMe && !cand.aiSeat) t=cand;
     }
     if(!t) t=findFreeTable();
     if(!t){ if(typeof ack==='function') ack({ok:false,err:'该桌已被占用，请换一张'}); return; }
-    const pid=socket.data.pid||('anon'+socket.id);
+    const pid=reqPid;
     releaseElsewhere(pid,t.id);
     t.seats.red={pid,name:socket.data.name||'访客',sid:socket.id};
     t.seats.black=null;
