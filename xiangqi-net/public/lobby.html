@@ -50,7 +50,8 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   .col-left,.col-right{width:100%}
   .col-left{flex:1;min-height:40vh}
   .col-right{flex:none}
-  .panel.people,.panel.ai{max-height:none;flex:1;min-height:150px}
+  .panel.people{max-height:none;flex:1;min-height:150px}
+.panel.ai{max-height:none;flex:0 0 auto}
   /* 按标签显示：棋桌 / 棋友，闲聊始终显示在最下面（随页面滚动） */
   body.tb-tables .col-right{display:none}
   body.tb-people .col-left{display:none}
@@ -62,11 +63,12 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}
 .panel.people{flex:0 1 auto;max-height:34%}
-.panel.ai{flex:0 1 auto;max-height:30%}
+.panel.ai{flex:0 0 auto;max-height:none}   /* 9级全部露出，不设上限、不裁切 */
 .panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
   font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px;flex-shrink:0}
 .panel-hd .cnt{color:var(--faint);font-size:.78rem;font-family:var(--song)}
 .plist{overflow-y:auto;min-height:0;flex:1}
+.panel.ai .plist{flex:0 0 auto;overflow:visible}   /* 电脑棋手：按9行实际高度撑开，不滚动 */
 .prow{display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid rgba(202,189,159,.4);font-size:.88rem}
 .prow:last-child{border-bottom:0}
 .prow .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
@@ -328,8 +330,10 @@ function renderAI(){
       +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
       +'<button>对弈</button>';
     el.querySelector('button').onclick=function(){
-      setAiPref(x.l);                     // 记住选择，桌行「和电脑下」沿用
-      socket.emit('lobby:playAI',{level:x.l},function(res){
+      setAiPref(x.l);                     // 记住选择
+      var payload={level:x.l};
+      if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; }
+      socket.emit('lobby:playAI',payload,function(res){
         if(res&&res.ok){
           location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
             +'&seat=red&name='+encodeURIComponent(myName());
@@ -503,14 +507,7 @@ function renderTables(list){
       else if(a==='watch') btn.onclick=function(){ watch(t.id); };
       else if(a==='ready') btn.onclick=toggleReady;
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
-      else if(a==='playai') btn.onclick=function(){
-        socket.emit('lobby:playAI',{level:aiPref(),tableId:t.id},function(res){
-          if(res&&res.ok){
-            location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
-              +'&seat=red&name='+encodeURIComponent(myName());
-          } else alert((res&&res.err)||'暂时无法开始');
-        });
-      };
+      else if(a==='playai') btn.onclick=function(){ goPickAI(t.id); };
     });
     ['o-type','o-per','o-tot','o-han'].forEach(function(id){
       var s=el.querySelector('#'+id);
@@ -526,6 +523,25 @@ function updateStatus(list){
   $('rs-tables').textContent=list.length+' 张';
   $('rs-playing').textContent=p+' 桌';
   $('rs-waiting').textContent=w+' 桌';
+}
+
+// 「和电脑下」→ 引导到「电脑棋手」栏选级；记下是为哪张桌选的
+var aiPickTarget=null;
+function goPickAI(tableId){
+  aiPickTarget=tableId;
+  // 手机端：切到"棋友"标签
+  var tabs=document.getElementById('tabs');
+  if(tabs && window.innerWidth<=720){
+    var btn=tabs.querySelector('[data-tb="people"]');
+    if(btn) btn.click();
+  }
+  var panel=document.querySelector('.panel.ai');
+  if(panel){
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+    panel.style.outline='2px solid var(--jade)';
+    panel.style.outlineOffset='2px';
+    setTimeout(function(){ panel.style.outline=''; },1800);
+  }
 }
 
 // ── 大厅聊天 ──
