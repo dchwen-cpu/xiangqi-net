@@ -681,21 +681,21 @@
     if(old) old.remove();
     var p=document.createElement('div');
     p.id='net-end-panel';
-    // 放在底部控制栏上方，不遮住棋盘中央的胜利画面
-    p.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);'
-      +'z-index:2147483647;background:rgba(236,227,208,.97);border:2px solid #9d2c21;'
-      +'border-radius:10px;padding:14px 22px;text-align:center;'
-      +'box-shadow:0 6px 24px rgba(0,0,0,.35);'
-      +'font-family:"Songti SC","SimSun",serif;min-width:240px';
-    p.innerHTML='<div style="color:#9d2c21;font-size:.98rem;margin-bottom:12px">'+esc(reason||'对局结束')+'</div>'
-      +'<div style="display:flex;gap:10px;justify-content:center">'
+    // 棋盘下方的横条，紧贴底部控制栏上沿，完全不遮棋盘
+    p.style.cssText='position:fixed;left:0;right:240px;bottom:52px;'
+      +'z-index:2147483646;background:#f3ead6;border-top:2px solid #9d2c21;'
+      +'padding:9px 14px;display:flex;align-items:center;gap:12px;justify-content:center;'
+      +'font-family:"Songti SC","SimSun",serif;box-shadow:0 -3px 12px rgba(0,0,0,.12)';
+    if(window.innerWidth<=580) p.style.right='0';
+    p.innerHTML='<span style="color:#9d2c21;font-size:.95rem">'+esc(reason||'对局结束')+'</span>'
+      +'<span style="display:flex;gap:8px">'
         +(isSpectator?'':'<button id="np-again" style="background:#4a7c59;color:#fff;border:0;'
-          +'border-radius:6px;padding:10px 22px;cursor:pointer;font-family:\'Kaiti SC\',serif;'
-          +'font-size:.98rem;letter-spacing:.1em">再来一局</button>')
+          +'border-radius:5px;padding:6px 16px;cursor:pointer;font-family:\'Kaiti SC\',serif;'
+          +'font-size:.9rem;letter-spacing:.08em">再来一局</button>')
         +'<a href="../" style="background:#9d2c21;color:#f2e8d5;text-decoration:none;'
-          +'border-radius:6px;padding:10px 22px;font-family:\'Kaiti SC\',serif;'
-          +'font-size:.98rem;letter-spacing:.1em">返回大厅</a>'
-      +'</div>';
+          +'border-radius:5px;padding:6px 16px;font-family:\'Kaiti SC\',serif;'
+          +'font-size:.9rem;letter-spacing:.08em">返回大厅</a>'
+      +'</span>';
     document.body.appendChild(p);
     var again=document.getElementById('np-again');
     if(again) again.onclick=function(){
