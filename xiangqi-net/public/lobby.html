@@ -8,18 +8,25 @@
   --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;--song:"Songti SC","STSong","SimSun","宋体",serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--paper);color:var(--i2);font-family:var(--song);min-height:100vh}
-.wrap{max-width:1120px;margin:0 auto;padding:0 16px 40px}
-.main-grid{display:flex;gap:18px;align-items:flex-start}
-.col-left{flex:1;min-width:0}
-.col-right{width:280px;flex:0 0 280px;position:sticky;top:12px;
-  height:calc(100vh - 24px);display:flex;flex-direction:column;gap:12px}
-@media(max-width:860px){
-  .main-grid{flex-direction:column}
-  .col-right{width:100%;flex:none;position:static;height:auto}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px 16px}
+.main-grid{display:flex;gap:18px;align-items:stretch;
+  height:calc(100vh - 190px);min-height:440px}
+.col-left{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
+#tables{flex:1;min-height:0;overflow-y:auto;padding-right:4px}
+#tables::-webkit-scrollbar,.plist::-webkit-scrollbar,#lc-log::-webkit-scrollbar{width:7px}
+#tables::-webkit-scrollbar-thumb,.plist::-webkit-scrollbar-thumb,#lc-log::-webkit-scrollbar-thumb{
+  background:var(--line);border-radius:4px}
+.col-right{width:280px;flex:0 0 280px;height:100%;
+  display:flex;flex-direction:column;gap:12px}
+@media(max-width:720px){
+  .main-grid{flex-direction:column;height:auto;min-height:0}
+  .col-left{height:auto}
+  #tables{max-height:46vh;flex:none}
+  .col-right{width:100%;flex:none;height:auto}
   .panel.people,.panel.ai{max-height:none}
-  .plist{max-height:200px}
+  .plist{max-height:170px}
   #lobby-chat{min-height:0}
-  #lc-log{height:160px;flex:none}
+  #lc-log{height:150px;flex:none}
 }
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}
@@ -82,7 +89,7 @@ button.go:disabled{opacity:.4;cursor:default}
 .divider span{font-size:.82rem;color:var(--faint);white-space:nowrap}
 
 /* 桌卡 */
-.trow{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:9px;
+.trow{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:9px 13px;margin-bottom:7px;
   transition:border-color .2s}
 .trow.mine{border-color:var(--seal);border-width:2px;background:#f0e7d4}
 .trow-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
