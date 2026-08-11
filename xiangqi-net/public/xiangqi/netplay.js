@@ -455,43 +455,43 @@
       '#net-top{position:fixed;top:0;left:0;right:0;height:40px;z-index:2147483647;',
         'display:flex;align-items:center;gap:7px;padding:0 10px;',
         'background:#9d2c21;color:#f2e8d5;font:12.5px "Songti SC","SimSun",serif}',
-      '#net-menu-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);',
-        'color:#f2e8d5;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:14px;line-height:1}',
-      '#net-menu-btn:hover{background:rgba(255,255,255,.28)}',
       '#net-top b{font-family:"Kaiti SC","STKaiti","楷体",serif;font-size:.92rem;letter-spacing:.08em;flex-shrink:0}',
       '#net-exit{color:#f2e8d5;text-decoration:none;font-size:11px;opacity:.8;',
         'padding:2px 7px;border:1px solid rgba(255,255,255,.3);border-radius:4px;flex-shrink:0}',
       '#net-exit:hover{opacity:1}',
-      // 双方姓名：紧跟在象棋室/退出之后；轮到谁走就给谁加亮，不再用单独一行文字重复说明
-      '#net-players{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}',
-      '#net-players .pn{opacity:.72;transition:opacity .15s}',
+      // 菜单按钮组：横排在"象棋室/退出"后面，一眼可见，不再藏进折叠图标。
+      // 这组用横向滚动而非换行——保证顶栏永远只占一行的固定高度，
+      // 不然棋盘又会被挤出视口（这正是上一轮要解决的问题，不能因为这次改动而复发）。
+      '#net-top-btns{display:flex;gap:5px;overflow-x:auto;overflow-y:hidden;flex-shrink:1;',
+        'scrollbar-width:none;-ms-overflow-style:none}',
+      '#net-top-btns::-webkit-scrollbar{display:none}',
+      '#net-top-btns button{flex-shrink:0;background:rgba(255,255,255,.14);',
+        'border:1px solid rgba(255,255,255,.32);color:#f2e8d5;border-radius:4px;',
+        'padding:4px 9px;cursor:pointer;font:12px "Songti SC","SimSun",serif;white-space:nowrap}',
+      '#net-top-btns button:hover{background:rgba(255,255,255,.26)}',
+      '#nb-resign{background:#c0392b!important;border-color:#f2c9c9!important}',
+      '#nb-resign:hover{background:#d64536!important}',
+      // 双方姓名：跟在按钮组后面，固定不滚动；轮到谁走就给谁加亮
+      '#net-players{flex-shrink:0;min-width:0;max-width:150px;overflow:hidden;',
+        'text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin-left:auto}',
+      '#net-players .pn{opacity:.68;transition:opacity .15s}',
       '#net-players .pn.on-turn{opacity:1;font-weight:bold;text-shadow:0 0 6px rgba(255,255,255,.5)}',
       '#net-players .sep{opacity:.5;margin:0 3px}',
-      '.net-timer{font-size:12px;opacity:.92;font-variant-numeric:tabular-nums;min-width:44px;',
+      '.net-timer{font-size:12px;opacity:.92;font-variant-numeric:tabular-nums;min-width:38px;',
         'text-align:right;flex-shrink:0}',
-      // 状态提示：改为顶栏正下方的小型浮动提示条，只在有事要说时才出现，平时不占任何版面
+      // 状态提示：顶栏正下方的小型浮动提示条，只在有事要说时才出现，平时不占任何版面
       '#net-status{position:fixed;top:40px;left:50%;transform:translateX(-50%);z-index:2147483645;',
         'display:none;background:rgba(32,29,22,.92);color:#f2e8d5;font-size:12px;',
         'padding:4px 14px;border-radius:0 0 8px 8px;white-space:nowrap;',
         'font-family:"Songti SC","SimSun",serif}',
       '#net-status.show{display:block}',
-      // 菜单面板：⚙对局设置、聊天开关、悔棋/求和/翻转/复盘/认输 全部收在这里，
-      // 用 position:fixed 悬浮展开，不占常驻版面、不计入棋盘可用高度
-      '#net-menu-panel{display:none;position:fixed;top:44px;left:8px;z-index:2147483647;',
-        'background:#ece3d0;border:1px solid #cabd9f;border-radius:8px;',
-        'box-shadow:0 8px 24px rgba(0,0,0,.3);padding:6px;min-width:168px;',
-        'flex-direction:column;gap:4px}',
-      '#net-menu-panel.open{display:flex}',
-      '#net-menu-panel button{background:#f3ead6;border:1px solid #cabd9f;border-radius:5px;',
-        'padding:7px 12px;cursor:pointer;color:#443c30;text-align:left;',
-        'font:13px "Songti SC","SimSun",serif;transition:.15s}',
-      '#net-menu-panel button:hover{border-color:#9d2c21;color:#9d2c21}',
-      '#nb-resign{color:#9d2c21!important;border-color:#c0392b!important}',
-      '#nb-resign:hover{background:#9d2c21!important;color:#f2e8d5!important}',
-      '#nb-ailv-wrap{display:none;flex-direction:column;gap:3px;padding:4px 2px}',
-      '#nb-ailv-wrap span{color:#8a8069;font-size:11px}',
-      '#nb-ailv-wrap select{padding:4px 6px;font-size:12px;border:1px solid #cabd9f;',
-        'border-radius:4px;background:#f3ead6;color:#443c30}',
+      // 电脑棋力选择：与AI对弈时才出现，紧凑内联在按钮组里
+      '#nb-ailv-wrap{display:none;flex-shrink:0;align-items:center;gap:4px;',
+        'background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.32);',
+        'border-radius:4px;padding:2px 8px}',
+      '#nb-ailv-wrap span{color:#f2e8d5;font-size:11px;opacity:.85;white-space:nowrap}',
+      '#nb-ailv-wrap select{padding:2px 4px;font-size:11px;border:1px solid rgba(255,255,255,.4);',
+        'border-radius:3px;background:#7a2018;color:#f2e8d5}',
       // 右侧聊天（桌面常驻；顶栏变矮，相应调整 top/bottom）
       '#net-side{position:fixed;top:40px;right:0;bottom:0;width:240px;z-index:2147483646;',
         'display:flex;flex-direction:column;background:#e4dabf;border-left:1px solid #cabd9f;',
@@ -527,21 +527,35 @@
         '#net-side.open{transform:translateY(0)}',
         '#net-rv-bar{right:0}',
         '#net-req-bar{right:0}',
-        '#net-menu-panel{left:8px;right:8px;min-width:0}',
+        '#net-top{gap:5px;padding:0 7px}',
+        '#net-top b{font-size:.85rem}',
+        '#net-players{display:none}',   // 手机屏太窄，姓名让位给按钮组，聊天区仍能看到双方是谁
       '}',
       '#nb-unread{background:#9d2c21;color:#fff;border-radius:9px;',
         'padding:0 5px;font-size:11px;margin-left:5px}'
     ].join('');
     document.head.appendChild(st);
 
-    // ── 顶栏：只留一行，象棋室 · 退出 · 姓名(轮到谁走即高亮谁) · 计时 ──
+    // ── 顶栏：单条横排——象棋室 · 退出 · 菜单按钮组(横向可滚动) · 姓名(轮到谁走即高亮) · 计时 ──
+    // 按钮组直接铺开在"退出"后面，一眼可见，不再藏进折叠图标；
+    // 组内用横向滚动而非换行，顶栏高度始终固定 40px，棋盘可用空间不受影响。
     var top=document.createElement('div'); top.id='net-top';
     var timerStr=(optTotal||optPerMove)
       ? '<span class="net-timer" id="ntR" title="红方时间">—</span><span class="net-timer" id="ntB" title="黑方时间">—</span>'
       : '';
-    top.innerHTML='<button id="net-menu-btn">☰</button>'
-      +'<b>象棋室</b>'
+    top.innerHTML='<b>象棋室</b>'
       +'<a href="../" id="net-exit">退出</a>'
+      +'<div id="net-top-btns">'
+        +'<button id="nb-opts">⚙ 设置</button>'
+        +'<button id="nb-endgame">🏳 结束棋局</button>'
+        +'<span id="nb-ailv-wrap"><span>棋力</span><select id="nb-ailv"></select></span>'
+        +'<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
+        +'<button id="nb-undo">悔棋</button>'
+        +'<button id="nb-draw">求和</button>'
+        +'<button id="nb-flip">↕ 翻转</button>'
+        +'<button id="nb-review">🔍 复盘</button>'
+        +'<button id="nb-resign">认输</button>'
+      +'</div>'
       +'<span id="net-players">'
         +'<span class="pn" id="pn-red">红：—</span>'
         +'<span class="sep">·</span>'
@@ -557,18 +571,6 @@
       +'<div id="net-chat-log"></div>'
       +'<div id="net-chat-in"><input id="net-msg" maxlength="200" placeholder="说点什么…" autocomplete="off"><button id="net-send">发</button></div>';
 
-    // ── 菜单面板：⚙设置 + 聊天开关 + 悔棋/求和/翻转/复盘/认输，悬浮展开，不占版面 ──
-    var menu=document.createElement('div'); menu.id='net-menu-panel';
-    menu.innerHTML='<button id="nb-opts">⚙ 对局设置</button>'
-      +'<button id="nb-endgame">🏳 结束棋局，返回大厅</button>'
-      +'<span id="nb-ailv-wrap"><span>电脑棋力</span><select id="nb-ailv"></select></span>'
-      +'<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
-      +'<button id="nb-undo">悔棋请求</button>'
-      +'<button id="nb-draw">求和</button>'
-      +'<button id="nb-flip">↕ 翻转棋盘</button>'
-      +'<button id="nb-review">🔍 复盘</button>'
-      +'<button id="nb-resign">认输</button>';
-
     var rvBar=document.createElement('div'); rvBar.id='net-rv-bar';
     rvBar.innerHTML='<button id="nb-rv-first">⏮</button><button id="nb-rv-prev">◀</button>'
       +'<span id="nb-rv-st"></span>'
@@ -581,20 +583,8 @@
     document.body.appendChild(top);
     document.body.appendChild(statusEl);
     document.body.appendChild(side);
-    document.body.appendChild(menu);
     document.body.appendChild(rvBar);
     document.body.appendChild(reqBar);
-
-    // 菜单开关（点外部自动收起）
-    document.getElementById('net-menu-btn').onclick=function(e){
-      e.stopPropagation();
-      menu.classList.toggle('open');
-    };
-    document.addEventListener('click',function(e){
-      if(menu.classList.contains('open') && !menu.contains(e.target) && e.target.id!=='net-menu-btn'){
-        menu.classList.remove('open');
-      }
-    });
 
 
     elStatus  =document.getElementById('net-status');
@@ -646,14 +636,15 @@
     // 认输
     document.getElementById('nb-resign').onclick=function(){
       if(isSpectator)return;
-      if(confirm('确认认输？')){ stopTimer(); socket.emit('resign'); }
+      showConfirm('确认认输？', function(){ stopTimer(); socket.emit('resign'); });
     };
     // 结束棋局，返回大厅：不再走认输/求和流程，直接把这桌标记结束并离开
     document.getElementById('nb-endgame').onclick=function(){
-      if(!confirm('结束本局并返回大厅？')) return;
-      stopTimer();
-      if(!isSpectator) socket.emit('table:leave');
-      location.href='../';
+      showConfirm('结束本局并返回大厅？', function(){
+        stopTimer();
+        if(!isSpectator) socket.emit('table:leave');
+        location.href='../';
+      });
     };
     document.getElementById('nb-opts').onclick=function(){
       buildOptsPanel();
@@ -794,6 +785,30 @@
     document.getElementById('np-o-per').value=String(curOptions.perMove||0);
     document.getElementById('np-o-tot').value=String(curOptions.total||0);
     document.getElementById('np-o-han').value=curOptions.handicap||'';
+  }
+
+  // 自定义确认框：替代浏览器原生 confirm()——原生弹窗会带出网址且是英文按钮，
+  // 这里做成页面内浮层，只显示中文文字和「确认/取消」两个按钮
+  function showConfirm(text, onYes){
+    var old=document.getElementById('net-confirm');
+    if(old) old.remove();
+    var box=document.createElement('div');
+    box.id='net-confirm';
+    box.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(32,29,22,.5);'
+      +'display:flex;align-items:center;justify-content:center';
+    box.innerHTML='<div style="background:#ece3d0;border:2px solid #9d2c21;border-radius:10px;'
+        +'padding:22px 26px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.35);'
+        +'font-family:\'Songti SC\',\'SimSun\',serif;min-width:220px;max-width:86vw">'
+      +'<div style="color:#201d16;font-size:.95rem;margin-bottom:18px;line-height:1.6">'+esc(text)+'</div>'
+      +'<div style="display:flex;gap:10px;justify-content:center">'
+        +'<button id="nc-yes" style="background:#9d2c21;color:#f2e8d5;border:0;border-radius:6px;'
+          +'padding:7px 20px;cursor:pointer;font-family:\'Kaiti SC\',\'楷体\',serif;font-size:.9rem">确认</button>'
+        +'<button id="nc-no" style="background:#e4dabf;color:#443c30;border:1px solid #cabd9f;'
+          +'border-radius:6px;padding:7px 20px;cursor:pointer;font-family:\'Songti SC\',serif;font-size:.9rem">取消</button>'
+      +'</div></div>';
+    document.body.appendChild(box);
+    document.getElementById('nc-yes').onclick=function(){ box.remove(); onYes(); };
+    document.getElementById('nc-no').onclick=function(){ box.remove(); };
   }
 
   // ── 悔棋/求和通知条（替代 confirm，避免浏览器拦截）──────────
