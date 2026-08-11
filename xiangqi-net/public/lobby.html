@@ -458,15 +458,13 @@ function renderTables(list){
 
     var detail='';
 
-    var waitTip = (mine && !bothSeated && !t.aiSeat)
-      ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--faint)">你已坐好，等待对方入座 —— 可在右侧「在厅棋友」邀请，或点上方「和电脑下」</div>'
-      : (bothSeated && mine ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--jade)">双方已入座，点「▶ 开始」进入棋盘（对弈方式可在棋盘内设置）</div>' : '');
+    // 坐下后不再弹出提示块，仅座位状态本身 + 标签位置的「▶ 开始」按钮足够说明情况
     el.innerHTML='<div class="trow-main">'
       +'<div class="nm">'+esc(t.name)+'</div>'
       +'<div class="seats">'+r+'　·　'+b+aiBtn+watchBtn
         +' <span class="tagwrap">'+mtag+stag+'</span>'+obs+'</div>'
       +'<div class="acts">'+acts+'</div>'
-      +'</div>'+waitTip+detail;
+      +'</div>'+detail;
 
     el.querySelectorAll('[data-act]').forEach(function(btn){
       var a=btn.getAttribute('data-act');
