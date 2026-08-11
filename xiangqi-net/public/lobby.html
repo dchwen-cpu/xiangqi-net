@@ -79,6 +79,8 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
 .prow button:hover{border-color:var(--seal);color:var(--seal)}
 .prow.me{background:rgba(157,44,33,.07)}
 .prow.ai .pn{color:var(--jade)}
+.prow.clickable{cursor:pointer;transition:background .15s}
+.prow.clickable:hover{background:rgba(74,124,89,.1)}
 .ai-dot{width:7px;height:7px;border-radius:50%;background:var(--jade);flex:0 0 auto}
 .pempty{padding:16px 13px;color:var(--faint);font-size:.84rem;text-align:center}
 /* 邀请弹窗 */
@@ -146,6 +148,9 @@ button.go:disabled{opacity:.4;cursor:default}
 .tag.start-tag{background:var(--jade);color:#fff;border-color:var(--jade);cursor:pointer;
   font-family:var(--kai);padding:2px 10px;font-size:.76rem;letter-spacing:.04em}
 .tag.start-tag:hover{filter:brightness(1.1)}
+.tag.start-tag.off{background:var(--paper);color:var(--faint);border-color:var(--line);
+  cursor:default;font-family:var(--song)}
+.tag.start-tag.off:hover{filter:none}
 .tagwrap{display:inline-flex;gap:5px;align-items:center;margin-left:8px}
 .tag.mine-tag{background:var(--seal);color:#fff;border-color:var(--seal)}
 .empty-hint{text-align:center;padding:32px 0;color:var(--faint);border:1px dashed var(--line);border-radius:6px}
@@ -329,12 +334,12 @@ function renderAI(){
   box.innerHTML='';
   lv.forEach(function(x){
     var el=document.createElement('div');
-    el.className='prow ai';
+    el.className='prow ai clickable';           // 整行可点，不必精确点在按钮上
     el.innerHTML='<span class="ai-dot"></span>'
       +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
-      +'<button>对弈</button>';
-    el.querySelector('button').onclick=function(){
-      setAiPref(x.l);                     // 记住选择
+      +'<button tabindex="-1">对弈</button>';    // 视觉上仍是按钮样式，但点击由整行接管
+    function go(){
+      setAiPref(x.l);
       var payload={level:x.l};
       if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; hideAiPickHint(); }
       socket.emit('lobby:playAI',payload,function(res){
@@ -343,7 +348,9 @@ function renderAI(){
             +'&seat=red&name='+encodeURIComponent(myName());
         } else alert((res&&res.err)||'暂时无法开始');
       });
-    };
+    }
+    el.onclick=go;                     // 整行任意位置
+    el.querySelector('button').onclick=function(e){ e.stopPropagation(); go(); };
     box.appendChild(el);
   });
 }
@@ -440,10 +447,11 @@ function renderTables(list){
     var watchBtn = ' <button class="sec mini watch" data-act="watch">观战</button>';
     var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
     var bothReady = !!(t.red && t.black && t.status!=='playing' && t.status!=='over');
-    var stag = t.status==='playing'?'<span class="tag">对局中</span>'
-             : t.status==='over'?'<span class="tag">已结束</span>'
-             : bothReady?'<button class="tag start-tag" data-act="start">▶ 开始</button>'
-             : '<span class="tag">候棋中</span>';
+    // 「▶ 开始」固定占据这个位置：双方未坐满时置灰不可点，坐满即刻点亮
+    var stag = (t.status==='playing') ? '<span class="tag">对局中</span>'
+             : (t.status==='over')    ? '<span class="tag">已结束</span>'
+             : '<button class="tag start-tag'+(bothReady?'':' off')+'" data-act="start"'
+               +(bothReady?'':' disabled')+'>▶ 开始</button>';
     var mtag = mine?'<span class="tag mine-tag">你在此桌</span>':'';
 
     var acts='';
