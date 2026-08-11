@@ -466,20 +466,19 @@ io.on('connection', socket => {
   });
 
   // 准备好了（双方都准备后发 game:start）
+  // 「▶ 开始」：双方都已入座时，任一方点一次即可开局（不需要另一方也点）
   socket.on('table:ready', ()=>{
     const t=tables.get(socket.data.tableId);
     if(!t) return;
     const seat=socket.data.seat;
     if(seat!=='red'&&seat!=='black') return;
-    t.ready[seat]=true;
-    broadcastRoom(t); pushLobby();
     const redOK   = !!t.seats.red   || t.aiSeat==='red';
     const blackOK = !!t.seats.black || t.aiSeat==='black';
-    if(t.ready.red && t.ready.black && redOK && blackOK){
-      t.status='playing';
-      io.to(t.id).emit('game:start', { options:{...t.options} });
-      pushLobby();
-    }
+    if(!redOK || !blackOK) return;          // 对面还空着，不能开始
+    t.ready.red=true; t.ready.black=true;   // 一人点击即视为双方就绪
+    t.status='playing';
+    io.to(t.id).emit('game:start', { options:{...t.options} });
+    broadcastRoom(t); pushLobby();
   });
 
   socket.on('table:unready', ()=>{
