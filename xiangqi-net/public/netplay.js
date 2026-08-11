@@ -122,20 +122,20 @@
   }
 
   // ── 让子：局面初始化后移除棋子 ───────────────────────────────
-  function applyHandicap(){
-    if(!optHandicap||optHandicap==='none') return;
+  // hc: 让子类型字符串，来自服务器广播的实时值，不再依赖页面加载时冻结的 URL 参数
+  function applyHandicap(hc){
+    if(!hc||hc==='none') return;
     try{
-      // 扫描棋盘，按需移除红方棋子
       var removed=0;
       for(var r=ROWS-1;r>=0;r--){
         for(var c=COLS-1;c>=0;c--){
           var p=board[r][c];
           if(!p||p.side!=='r') continue;
-          if(optHandicap==='horse1'  && p.type==='M' && removed<1){ board[r][c]=null; removed++; }
-          if(optHandicap==='horse2'  && p.type==='M')               { board[r][c]=null; }
-          if(optHandicap==='cannon1' && p.type==='P' && removed<1){ board[r][c]=null; removed++; }
-          if(optHandicap==='rook1'   && p.type==='C' && removed<1){ board[r][c]=null; removed++; }
-          if(optHandicap==='rook_horse'&&(p.type==='C'||p.type==='M')&&removed<2){ board[r][c]=null; removed++; }
+          if(hc==='horse1'     && p.type==='M' && removed<1){ board[r][c]=null; removed++; }
+          if(hc==='horse2'     && p.type==='M')               { board[r][c]=null; }
+          if(hc==='cannon1'    && p.type==='P' && removed<1){ board[r][c]=null; removed++; }
+          if(hc==='rook1'      && p.type==='C' && removed<1){ board[r][c]=null; removed++; }
+          if(hc==='rook_horse' &&(p.type==='C'||p.type==='M')&&removed<2){ board[r][c]=null; removed++; }
         }
       }
       if(typeof draw==='function') draw();
@@ -173,6 +173,18 @@
         doSync(st, socket);
       }
     });
+    // 对局设置变化（含让子）：更新面板显示；若还没人走子，立刻让双方棋盘反映新设置
+    socket.on('table:options', function(d){
+      applyOptsToPanel(d.options);
+      if(appliedCount===0 && !isSpectator){
+        try{ if(typeof reset==='function') reset(); }catch(e){}
+        try{
+          if(myColor==='b' && typeof boardFlipped!=='undefined' && !boardFlipped) boardFlipped=true;
+        }catch(e){}
+        if(d.options && d.options.handicap) applyHandicap(d.options.handicap);
+        else if(typeof draw==='function') draw();
+      }
+    });
     socket.on('move', function(m){
       if(!m||typeof m.idx!=='number') return;
       if     (m.idx===appliedCount){ applyRemote(m); appliedCount++; onMoveMade(m.by, socket); refreshTurn(); checkLocalGameOver(socket); setTimeout(function(){ maybeRunAI(); },400); }
@@ -206,6 +218,7 @@
       try{ gameOver=false; }catch(e){}
       endReported=false;
       stopTimer();
+      if(d && d.options) curOptions=d.options;   // 让子随最新设置在重开局时一并生效
       if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
       else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
       updateTimerDisplay();
@@ -381,7 +394,7 @@
       }
     }catch(e){}
     // 应用让子
-    if(optHandicap && st.moves && st.moves.length===0) applyHandicap();
+    if(st.options && st.options.handicap && st.moves && st.moves.length===0) applyHandicap(st.options.handicap);
     setPlayers(st.seats||{});
     refreshTurn();
     refreshAiLvUI();
