@@ -187,6 +187,7 @@
         aiDriving = !!(aiSeat && myColor && ((myColor==='r'&&aiSeat==='black')||(myColor==='b'&&aiSeat==='red')));
         if(hooksSet){
           applyTableMode();
+          refreshAiLvUI();
           warmUpEngine();                        // AI 一落座就开始加载引擎
           setTimeout(maybeRunAI,300);
         }
@@ -261,6 +262,16 @@
       };
       window.makeMove.__net=true;
     }
+  }
+
+  // 根据是否与电脑对弈，显示棋力下拉并同步当前级别
+  function refreshAiLvUI(){
+    var wrap=document.getElementById('nb-ailv-wrap');
+    var sel=document.getElementById('nb-ailv');
+    if(!wrap||!sel) return;
+    var show=!!(aiSeat && aiDriving);
+    wrap.style.display = show ? 'inline-flex' : 'none';
+    if(show) sel.value=String(aiLv);
   }
 
   // 预热强引擎：AI 落座后立即开始加载，避免轮到它时才现下
@@ -373,6 +384,7 @@
     if(optHandicap && st.moves && st.moves.length===0) applyHandicap();
     setPlayers(st.seats||{});
     refreshTurn();
+    refreshAiLvUI();
     setTimeout(function(){ applyTableMode(); maybeRunAI(); },600);   // 开局若AI先手，让它先走
   }
 
@@ -500,7 +512,13 @@
       +'<div id="net-chat-in"><input id="net-msg" maxlength="200" placeholder="说点什么…" autocomplete="off"><button id="net-send">发</button></div>';
 
     var bar=document.createElement('div'); bar.id='net-bar';
-    bar.innerHTML='<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
+    bar.innerHTML='<button id="nb-opts">⚙ 对局设置</button>'
+      +'<span id="nb-ailv-wrap" style="display:none;align-items:center;gap:5px">'
+        +'<span style="color:#8a8069;font-size:.82rem">电脑棋力</span>'
+        +'<select id="nb-ailv" style="padding:4px 6px;font-size:.82rem;border:1px solid #cabd9f;'
+          +'border-radius:4px;background:#ece3d0;color:#443c30;font-family:\'Songti SC\',serif"></select>'
+      +'</span>'
+      +'<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
       +'<button id="nb-undo">悔棋请求</button>'
       +'<button id="nb-draw">求和</button>'
       +'<button id="nb-flip">↕ 翻转</button>'
@@ -573,6 +591,13 @@
       if(isSpectator)return;
       if(confirm('确认认输？')){ stopTimer(); socket.emit('resign'); }
     };
+    document.getElementById('nb-opts').onclick=function(){
+      buildOptsPanel();
+      var p=document.getElementById('net-opts-panel');
+      p.style.display = (p.style.display==='none') ? 'block' : 'none';
+    };
+    // 与电脑对弈：对局设置无意义（无对手协商），隐藏该按钮
+    if(aiSeat){ var ob=document.getElementById('nb-opts'); if(ob) ob.style.display='none'; }
     // 退出
     document.getElementById('net-exit').onclick=function(e){
       if(!confirm('确认退出当前对局？')){ e.preventDefault(); }
@@ -602,6 +627,25 @@
     document.getElementById('net-send').onclick=sendChat;
     elChatIn.addEventListener('keydown',function(e){ if(e.key==='Enter')sendChat(); });
 
+    // 电脑棋力下拉：与电脑对弈时才显示，可随时换级（下一手生效）
+    (function(){
+      var sel=document.getElementById('nb-ailv');
+      var names={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'};
+      var html='';
+      for(var l=1;l<=9;l++) html+='<option value="'+l+'">'+l+'级 '+names[l]+'</option>';
+      sel.innerHTML=html;
+      sel.onchange=function(){
+        var lv=parseInt(sel.value)||6;
+        aiLv=lv;
+        try{ aiLevel=lv; }catch(e){}
+        if(typeof prepEngineForLevel==='function') prepEngineForLevel(lv);
+        warmUpEngine();
+        setStatus('电脑棋力已改为 '+lv+' 级');
+        addChat({name:'系统',seat:'',text:'电脑棋力改为 '+lv+' 级 '+names[lv]});
+      };
+      refreshAiLvUI();
+    })();
+
     // 引擎文件自检：缺失时明确提示，避免"强AI默默变内置AI"
     checkEngineFiles();
 
@@ -612,6 +656,82 @@
       timer.red.rem=optPerMove; timer.black.rem=optPerMove;
     }
     updateTimerDisplay();
+  }
+
+  // ── 对局设置面板：对弈方式/让子，双方都能看到当前设置并同步 ──────
+  var curOptions={type:'free',perMove:0,total:0,handicap:''};
+  function buildOptsPanel(){
+    if(document.getElementById('net-opts-panel')) return;
+    var isRed=(myColor==='r');
+    var p=document.createElement('div');
+    p.id='net-opts-panel';
+    p.style.cssText='display:none;position:fixed;left:50%;bottom:60px;transform:translateX(-50%);'
+      +'z-index:2147483647;background:#ece3d0;border:2px solid #9d2c21;border-radius:10px;'
+      +'padding:16px 20px;box-shadow:0 8px 28px rgba(0,0,0,.35);'
+      +'font-family:"Songti SC","SimSun",serif;min-width:260px';
+    p.innerHTML='<div style="font-family:\'Kaiti SC\',\'楷体\',serif;font-size:1rem;'
+      +'color:#201d16;margin-bottom:10px;letter-spacing:.08em">对局设置</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.88rem">'
+        +'<label style="color:#8a8069;min-width:56px">方式</label>'
+        +'<select id="np-o-type" style="padding:4px 7px"'+(isRed?'':' disabled')+'>'
+          +'<option value="free">自由（不限时）</option>'
+          +'<option value="timed">计时对弈</option>'
+        +'</select></div>'
+      +'<div id="np-o-timed" style="display:none">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.88rem">'
+          +'<label style="color:#8a8069;min-width:56px">每步</label>'
+          +'<select id="np-o-per" style="padding:4px 7px"'+(isRed?'':' disabled')+'>'
+            +'<option value="0">不限</option><option value="30">30秒</option>'
+            +'<option value="60">60秒</option><option value="180">3分</option>'
+          +'</select></div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.88rem">'
+          +'<label style="color:#8a8069;min-width:56px">全局</label>'
+          +'<select id="np-o-tot" style="padding:4px 7px"'+(isRed?'':' disabled')+'>'
+            +'<option value="0">不限</option><option value="600">10分</option>'
+            +'<option value="1200">20分</option><option value="1800">30分</option>'
+          +'</select></div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.88rem">'
+        +'<label style="color:#8a8069;min-width:56px">让子</label>'
+        +'<select id="np-o-han" style="padding:4px 7px"'+(isRed?'':' disabled')+'>'
+          +'<option value="">无</option><option value="horse1">红让单马</option>'
+          +'<option value="horse2">红让双马</option><option value="cannon1">红让单炮</option>'
+          +'<option value="rook1">红让单车</option>'
+        +'</select></div>'
+      +(isRed?'':'<div style="font-size:.78rem;color:#8a8069;margin-bottom:10px">设置由红方调整，此处仅供查看</div>')
+      +'<div style="text-align:right"><button id="np-o-close" style="background:#9d2c21;color:#f2e8d5;'
+        +'border:0;border-radius:5px;padding:5px 16px;cursor:pointer;font-family:\'Kaiti SC\',serif">关闭</button></div>';
+    document.body.appendChild(p);
+
+    document.getElementById('np-o-close').onclick=function(){ p.style.display='none'; };
+    var tsel=document.getElementById('np-o-type');
+    tsel.onchange=function(){
+      document.getElementById('np-o-timed').style.display = tsel.value==='timed'?'block':'none';
+      if(isRed) emitOpts();
+    };
+    ['np-o-per','np-o-tot','np-o-han'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.onchange=function(){ if(isRed) emitOpts(); };
+    });
+  }
+  function emitOpts(){
+    var t=document.getElementById('np-o-type').value;
+    curOptions={
+      type:t,
+      perMove:parseInt(document.getElementById('np-o-per').value)||0,
+      total:parseInt(document.getElementById('np-o-tot').value)||0,
+      handicap:document.getElementById('np-o-han').value
+    };
+    if(window.__netSocket) window.__netSocket.emit('table:options',curOptions);
+  }
+  function applyOptsToPanel(o){
+    curOptions=o||curOptions;
+    var t=document.getElementById('np-o-type'); if(!t) return;
+    t.value=curOptions.type||'free';
+    document.getElementById('np-o-timed').style.display=(curOptions.type==='timed')?'block':'none';
+    document.getElementById('np-o-per').value=String(curOptions.perMove||0);
+    document.getElementById('np-o-tot').value=String(curOptions.total||0);
+    document.getElementById('np-o-han').value=curOptions.handicap||'';
   }
 
   // ── 悔棋/求和通知条（替代 confirm，避免浏览器拦截）──────────
