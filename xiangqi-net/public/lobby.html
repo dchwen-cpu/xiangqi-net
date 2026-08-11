@@ -143,6 +143,9 @@ button.go:disabled{opacity:.4;cursor:default}
 .seat-btn.red:hover{border:1px solid var(--seal);background:var(--seal);color:#fff}
 .seat-btn.blk:hover{border:1px solid var(--ink);background:var(--ink);color:#fff}
 .tag{font-size:.72rem;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--faint);white-space:nowrap}
+.tag.start-tag{background:var(--jade);color:#fff;border-color:var(--jade);cursor:pointer;
+  font-family:var(--kai);padding:2px 10px;font-size:.76rem;letter-spacing:.04em}
+.tag.start-tag:hover{filter:brightness(1.1)}
 .tagwrap{display:inline-flex;gap:5px;align-items:center;margin-left:8px}
 .tag.mine-tag{background:var(--seal);color:#fff;border-color:var(--seal)}
 .empty-hint{text-align:center;padding:32px 0;color:var(--faint);border:1px dashed var(--line);border-radius:6px}
@@ -396,6 +399,12 @@ function sendOptions(){
     handicap: $('o-han')?$('o-han').value:''
   });
 }
+function startTable(tableId){
+  // 大厅「▶ 开始」：直接标记己方就绪；服务器判定双方都就绪后自动 game:start 跳转
+  myTable=tableId;
+  socket.emit('table:ready');
+}
+
 function toggleReady(){
   if(!myTable) return;
   var t=lastList.filter(function(x){return x.id===myTable;})[0];
@@ -430,8 +439,11 @@ function renderTables(list){
       ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
     var watchBtn = ' <button class="sec mini watch" data-act="watch">观战</button>';
     var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
+    var bothReady = !!(t.red && t.black && t.status!=='playing' && t.status!=='over');
     var stag = t.status==='playing'?'<span class="tag">对局中</span>'
-             : t.status==='over'?'<span class="tag">已结束</span>':'<span class="tag">候棋中</span>';
+             : t.status==='over'?'<span class="tag">已结束</span>'
+             : bothReady?'<button class="tag start-tag" data-act="start">▶ 开始</button>'
+             : '<span class="tag">候棋中</span>';
     var mtag = mine?'<span class="tag mine-tag">你在此桌</span>':'';
 
     var acts='';
@@ -445,55 +457,10 @@ function renderTables(list){
     }
 
     var detail='';
-    if(mine && bothSeated){
-      var rdy=t.ready||{}, both=!!(t.red&&t.black);
-      var meReady = rdy[mySeat];
-      var oppSeat = mySeat==='red'?'black':'red';
-      var oppReady= rdy[oppSeat];
-      var o=t.options||{type:'free',perMove:0,total:0,handicap:''};
-      var isRed = (mySeat==='red');
-      detail='<div class="trow-detail">'
-        +'<div class="opt-line"><label class="lb">对弈方式</label>'
-          +'<select id="o-type" '+(isRed?'':'disabled')+'>'
-            +'<option value="free"'+(o.type==='free'?' selected':'')+'>自由（不限时）</option>'
-            +'<option value="timed"'+(o.type==='timed'?' selected':'')+'>计时对弈</option>'
-          +'</select>'
-          +'<label class="lb" style="margin-left:8px">让子</label>'
-          +'<select id="o-han" '+(isRed?'':'disabled')+'>'
-            +'<option value=""'+(!o.handicap?' selected':'')+'>无</option>'
-            +'<option value="horse1"'+(o.handicap==='horse1'?' selected':'')+'>红让单马</option>'
-            +'<option value="horse2"'+(o.handicap==='horse2'?' selected':'')+'>红让双马</option>'
-            +'<option value="cannon1"'+(o.handicap==='cannon1'?' selected':'')+'>红让单炮</option>'
-            +'<option value="rook1"'+(o.handicap==='rook1'?' selected':'')+'>红让单车</option>'
-          +'</select></div>'
-        +(o.type==='timed'
-          ?'<div class="opt-line"><label class="lb">每步</label>'
-            +'<select id="o-per" '+(isRed?'':'disabled')+'>'
-              +'<option value="0"'+(o.perMove===0?' selected':'')+'>不限</option>'
-              +'<option value="30"'+(o.perMove===30?' selected':'')+'>30秒</option>'
-              +'<option value="60"'+(o.perMove===60?' selected':'')+'>60秒</option>'
-              +'<option value="180"'+(o.perMove===180?' selected':'')+'>3分</option>'
-            +'</select>'
-            +'<label class="lb" style="margin-left:8px">全局</label>'
-            +'<select id="o-tot" '+(isRed?'':'disabled')+'>'
-              +'<option value="0"'+(o.total===0?' selected':'')+'>不限</option>'
-              +'<option value="600"'+(o.total===600?' selected':'')+'>10分</option>'
-              +'<option value="1200"'+(o.total===1200?' selected':'')+'>20分</option>'
-              +'<option value="1800"'+(o.total===1800?' selected':'')+'>30分</option>'
-            +'</select></div>'
-          :'')
-        +'<div class="start-line">'
-          +'<button class="go" data-act="ready" '+(both?'':'disabled')+'>'+(meReady?'取消开始':'开始对局')+'</button>'
-          +'<span class="ready-mark">'+(meReady?'✓ 你已就绪　':'')+(oppReady?'✓ 对方已就绪':'')+'</span>'
-          +'<span class="hint-txt">'+(both?(meReady&&oppReady?'即将进入棋盘…':'双方都点「开始对局」即进入棋盘'):'等待对方入座，可在下方闲聊招呼')+'</span>'
-        +'</div>'
-        +(isRed?'':'<div style="font-size:.8rem;color:var(--faint);margin-top:6px">对局形式由红方设定</div>')
-      +'</div>';
-    }
 
     var waitTip = (mine && !bothSeated && !t.aiSeat)
-      ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--faint)">你已坐好，等待对方入座 —— 可在右侧「在厅棋友」邀请，或在本行约电脑</div>'
-      : '';
+      ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--faint)">你已坐好，等待对方入座 —— 可在右侧「在厅棋友」邀请，或点上方「和电脑下」</div>'
+      : (bothSeated && mine ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.85rem;color:var(--jade)">双方已入座，点「▶ 开始」进入棋盘（对弈方式可在棋盘内设置）</div>' : '');
     el.innerHTML='<div class="trow-main">'
       +'<div class="nm">'+esc(t.name)+'</div>'
       +'<div class="seats">'+r+'　·　'+b+aiBtn+watchBtn
@@ -507,6 +474,7 @@ function renderTables(list){
       else if(a==='leave') btn.onclick=leave;
       else if(a==='watch') btn.onclick=function(){ watch(t.id); };
       else if(a==='ready') btn.onclick=toggleReady;
+      else if(a==='start') btn.onclick=function(){ startTable(t.id); };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
       else if(a==='playai') btn.onclick=function(){ goPickAI(t.id); };
     });
