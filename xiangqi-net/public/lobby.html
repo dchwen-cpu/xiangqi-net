@@ -80,6 +80,9 @@ button.go:disabled{opacity:.4;cursor:default}
 .seat-r{color:var(--seal);font-weight:bold}.seat-b{color:var(--ink);font-weight:bold}.seat-e{color:var(--faint)}
 .trow .acts{display:flex;gap:6px;flex-wrap:wrap}
 .trow .acts button{padding:5px 11px;font-size:.85rem}
+.trow .seats button.mini{padding:2px 9px;font-size:.78rem;background:var(--paper);
+  border:1px solid var(--jade);border-radius:4px;color:var(--jade);cursor:pointer;margin-left:4px}
+.trow .seats button.mini:hover{background:var(--jade);color:#fff}
 .tag{font-size:.72rem;padding:1px 7px;border-radius:10px;border:1px solid var(--line);color:var(--faint);white-space:nowrap}
 .tag.mine-tag{background:var(--seal);color:#fff;border-color:var(--seal)}
 .empty-hint{text-align:center;padding:32px 0;color:var(--faint);border:1px dashed var(--line);border-radius:6px}
@@ -173,6 +176,8 @@ if(!myPID){ myPID='p'+Math.random().toString(36).slice(2)+Date.now().toString(36
 $('my-name').value=localStorage.getItem('lsz_name')||'';
 $('my-name').addEventListener('change',function(){ localStorage.setItem('lsz_name',$('my-name').value.trim()); });
 function myName(){ return ($('my-name').value.trim())||('访客'+myPID.slice(-4)); }
+function aiPref(){ return parseInt(localStorage.getItem('lsz_ailv'))||6; }
+function setAiPref(l){ localStorage.setItem('lsz_ailv',l); }
 
 var myTable=null, mySeat=null;      // 我坐在哪张桌、什么位置
 var lastList=[];
@@ -257,6 +262,7 @@ function renderAI(){
       +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
       +'<button>对弈</button>';
     el.querySelector('button').onclick=function(){
+      setAiPref(x.l);                     // 记住选择，桌行「和电脑下」沿用
       socket.emit('lobby:playAI',{level:x.l},function(res){
         if(res&&res.ok){
           location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
@@ -333,13 +339,6 @@ function toggleReady(){
 }
 
 // ── 渲染 ──
-// 每桌行尾的电脑棋力选择器
-function aiPicker(){
-  var lv=[1,2,3,4,5,6,7,8,9], nm={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'};
-  return '<select class="ailv-pre" style="padding:4px 5px;font-size:.8rem">'
-    + lv.map(function(l){ return '<option value="'+l+'"'+(l===6?' selected':'')+'>'+l+'级 '+nm[l]+'</option>'; }).join('')
-    + '</select>';
-}
 function renderTables(list){
   var box=$('tables');
   if(!list||!list.length){ box.innerHTML='<div class="empty-hint">还没有棋桌。点「开一桌」发起对局。坐下后可邀请「电脑棋手」对弈，也可等人来下。</div>'; return; }
@@ -352,6 +351,9 @@ function renderTables(list){
 
     var r = t.red   ? '<span class="seat-r">● 红 '+esc(t.red)+'</span>'   : '<span class="seat-e">○ 红 空位</span>';
     var b = t.black ? '<span class="seat-b">● 黑 '+esc(t.black)+'</span>' : '<span class="seat-e">○ 黑 空位</span>';
+    // 黑位空着就在它后面直接给「和电脑下」，一键开局（棋力用右栏选定的）
+    var aiBtn = (!t.black && !t.aiSeat && t.status!=='playing' && t.status!=='over')
+      ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
     var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
     var stag = t.status==='playing'?'<span class="tag">对局中</span>'
              : t.status==='over'?'<span class="tag">已结束</span>':'<span class="tag">候棋中</span>';
@@ -361,20 +363,13 @@ function renderTables(list){
     if(mine){
       acts='<button class="sec" data-act="leave">离桌</button>';
       // 对面空着 → 可邀请电脑；已有AI → 可请其离座
-      var myC = mySeat, oppC = (mySeat==='red'?'black':'red');
-      var oppTaken = (oppC==='red') ? t.red : t.black;
+      var oppC = (mySeat==='red'?'black':'red');
       if(t.aiSeat===oppC){
-        acts='<button class="sec" data-act="dismissai">请AI离座</button>'+acts;
-      } else if(!oppTaken){
-        acts=aiPicker()+'<button class="sec" data-act="inviteai">邀请电脑</button>'+acts;
+        acts='<button class="sec" data-act="dismissai">请电脑离座</button>'+acts;
       }
     } else {
       if(!t.red   && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="red">坐红</button>';
       if(!t.black && t.status!=='playing') acts+='<button class="sec" data-act="sit" data-seat="black">坐黑</button>';
-      // 空桌：直接在本桌约电脑，不必先坐下
-      if(!t.red && !t.black && t.status!=='playing' && !t.aiSeat){
-        acts+=aiPicker()+'<button class="sec" data-act="playai">约电脑</button>';
-      }
       acts+='<button class="sec" data-act="watch">观战</button>';
     }
 
@@ -386,17 +381,7 @@ function renderTables(list){
       var oppReady= rdy[oppSeat];
       var o=t.options||{type:'free',perMove:0,total:0,handicap:''};
       var isRed = (mySeat==='red');
-      var oppC2=(mySeat==='red'?'black':'red');
-      var aiHere=(t.aiSeat===oppC2);
       detail='<div class="trow-detail">'
-        +(aiHere?('<div class="opt-line"><label class="lb">AI棋力</label>'
-          +'<select id="o-ailv">'
-          +[1,2,3,4,5,6,7,8,9].map(function(l){
-              var nm={1:'新手',2:'入门',3:'业余',4:'棋手',5:'高手',6:'棋协大师',7:'大师',8:'特级大师',9:'引擎巅峰'}[l];
-              return '<option value="'+l+'"'+((t.aiLevel||6)===l?' selected':'')+'>'+l+'级 · '+nm+'</option>';
-            }).join('')
-          +'</select>'
-          +'<span style="color:var(--faint);font-size:.82rem;margin-left:6px">7级以上首次需下载神经网络</span></div>'):'')
         +'<div class="opt-line"><label class="lb">对弈方式</label>'
           +'<select id="o-type" '+(isRed?'':'disabled')+'>'
             +'<option value="free"'+(o.type==='free'?' selected':'')+'>自由（不限时）</option>'
@@ -440,7 +425,7 @@ function renderTables(list){
       : '';
     el.innerHTML='<div class="trow-main">'
       +'<div class="nm">'+esc(t.name)+'</div>'
-      +'<div class="seats">'+r+'　·　'+b+obs+'</div>'
+      +'<div class="seats">'+r+'　·　'+b+aiBtn+obs+'</div>'
       +'<div style="display:flex;gap:5px;align-items:center">'+mtag+stag+'</div>'
       +'<div class="acts">'+acts+'</div>'
       +'</div>'+waitTip+detail;
@@ -451,16 +436,9 @@ function renderTables(list){
       else if(a==='leave') btn.onclick=leave;
       else if(a==='watch') btn.onclick=function(){ watch(t.id); };
       else if(a==='ready') btn.onclick=toggleReady;
-      else if(a==='inviteai') btn.onclick=function(){
-        var sel=el.querySelector('.ailv-pre');     // 读按钮旁边那个棋力选择
-        var lv=sel?(parseInt(sel.value)||6):6;
-        socket.emit('table:inviteAI',{level:lv});
-      };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
       else if(a==='playai') btn.onclick=function(){
-        var sel=el.querySelector('.ailv-pre');
-        var lv=sel?(parseInt(sel.value)||6):6;
-        socket.emit('lobby:playAI',{level:lv,tableId:t.id},function(res){
+        socket.emit('lobby:playAI',{level:aiPref(),tableId:t.id},function(res){
           if(res&&res.ok){
             location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
               +'&seat=red&name='+encodeURIComponent(myName());
@@ -468,8 +446,6 @@ function renderTables(list){
         });
       };
     });
-    var aisel=el.querySelector('#o-ailv');
-    if(aisel) aisel.onchange=function(){ socket.emit('table:inviteAI',{level:parseInt(aisel.value)||6}); };
     ['o-type','o-per','o-tot','o-han'].forEach(function(id){
       var s=el.querySelector('#'+id);
       if(s) s.onchange=sendOptions;
