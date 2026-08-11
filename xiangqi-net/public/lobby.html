@@ -7,26 +7,50 @@
 :root{--paper:#ece3d0;--p2:#e4dabf;--ink:#201d16;--i2:#443c30;--faint:#8a8069;--line:#cabd9f;--seal:#9d2c21;--jade:#4a7c59;
   --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;--song:"Songti SC","STSong","SimSun","宋体",serif}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--paper);color:var(--i2);font-family:var(--song);min-height:100vh}
-.wrap{max-width:1120px;margin:0 auto;padding:0 16px 16px}
-.main-grid{display:flex;gap:18px;align-items:stretch;
-  height:calc(100vh - 190px);min-height:440px}
-.col-left{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
+html,body{height:100%;overflow:hidden}
+body{background:var(--paper);color:var(--i2);font-family:var(--song);
+  display:flex;flex-direction:column}
+.wrap{flex:1;min-height:0;width:100%;max-width:1120px;margin:0 auto;
+  padding:0 14px 12px;display:flex;flex-direction:column}
+/* 主区吃掉头部之外的全部高度，无需 calc 猜测 */
+.main-grid{flex:1;min-height:0;display:flex;gap:16px;align-items:stretch}
+.col-left{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 #tables{flex:1;min-height:0;overflow-y:auto;padding-right:4px}
 #tables::-webkit-scrollbar,.plist::-webkit-scrollbar,#lc-log::-webkit-scrollbar{width:7px}
 #tables::-webkit-scrollbar-thumb,.plist::-webkit-scrollbar-thumb,#lc-log::-webkit-scrollbar-thumb{
   background:var(--line);border-radius:4px}
-.col-right{width:280px;flex:0 0 280px;height:100%;
-  display:flex;flex-direction:column;gap:12px}
+.col-right{width:280px;flex:0 0 280px;min-height:0;
+  display:flex;flex-direction:column;gap:10px}
+/* 手机：三个标签轮流占满整屏，不再堆叠成长条 */
+.tabs{display:none;flex-shrink:0;gap:6px;padding:6px 0 8px}
+.tabs button{flex:1;padding:8px 0;font-size:.9rem;font-family:var(--song);
+  background:var(--p2);border:1px solid var(--line);border-radius:6px;
+  color:var(--i2);cursor:pointer}
+.tabs button.on{background:var(--seal);color:#fff;border-color:var(--seal)}
+.tabs .badge{display:none;background:#fff;color:var(--seal);border-radius:8px;
+  padding:0 5px;font-size:.72rem;margin-left:4px}
+
 @media(max-width:720px){
-  .main-grid{flex-direction:column;height:auto;min-height:0}
-  .col-left{height:auto}
-  #tables{max-height:46vh;flex:none}
-  .col-right{width:100%;flex:none;height:auto}
-  .panel.people,.panel.ai{max-height:none}
-  .plist{max-height:170px}
-  #lobby-chat{min-height:0}
-  #lc-log{height:150px;flex:none}
+  .wrap{padding:0 10px 8px}
+  header{padding:9px 0 6px}
+  header .t{font-size:1.2rem}
+  header .s{display:none}
+  #room-status{gap:10px;font-size:.76rem}
+  .divider{display:none}
+  .tabs{display:flex}
+  .main-grid{flex-direction:column;gap:0}
+  .col-left,.col-right{width:100%;flex:1;min-height:0}
+  .panel.people,.panel.ai{max-height:none;flex:1}
+  /* 按标签显示 */
+  body.tb-tables .col-right{display:none}
+  body.tb-people .col-left{display:none}
+  body.tb-people #lobby-chat{display:none}
+  body.tb-chat   .col-left{display:none}
+  body.tb-chat   .panel.people,body.tb-chat .panel.ai{display:none}
+  body.tb-chat   #lobby-chat{flex:1}
+  .trow{padding:8px 11px;margin-bottom:6px}
+  .trow-main{gap:8px}
+  .trow .nm{min-width:auto;font-size:.98rem}
 }
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}
@@ -57,14 +81,14 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);min-height:
 #inv-box .m{color:var(--i2);margin-bottom:18px;font-size:.95rem}
 #inv-box .b{display:flex;gap:10px;justify-content:center}
 
-header{text-align:center;padding:22px 0 12px;border-bottom:1px solid var(--line)}
-header .t{font-family:var(--kai);font-size:1.75rem;letter-spacing:.3em;color:var(--ink)}
-header .s{color:var(--faint);font-size:.86rem;margin-top:4px;letter-spacing:.08em}
+header{flex-shrink:0;text-align:center;padding:12px 0 8px;border-bottom:1px solid var(--line)}
+header .t{font-family:var(--kai);font-size:1.4rem;letter-spacing:.28em;color:var(--ink)}
+header .s{color:var(--faint);font-size:.8rem;margin-top:2px;letter-spacing:.06em}
 .home-link{color:var(--faint);text-decoration:none;font-size:.8rem}
 .home-link:hover{color:var(--seal)}
 
-#room-status{display:flex;gap:18px;padding:8px 0;font-size:.85rem;color:var(--faint);
-  border-bottom:1px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+#room-status{flex-shrink:0;display:flex;gap:14px;padding:6px 0;font-size:.82rem;color:var(--faint);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
 .rs-item b{color:var(--i2)}
 
 input,select,button{font-family:var(--song);font-size:.94rem}
@@ -80,11 +104,11 @@ button.go{background:var(--jade);color:#fff;border:0;border-radius:5px;padding:7
 button.go:hover{filter:brightness(1.1)}
 button.go:disabled{opacity:.4;cursor:default}
 
-.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0}
+.bar{flex-shrink:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 0}
 
 /* AI 区 */
 #ai-section{background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:13px 16px;margin:4px 0 14px}
-.divider{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
+.divider{flex-shrink:0;display:flex;align-items:center;gap:10px;margin:2px 0 8px}
 .divider .ln{flex:1;border-top:1px solid var(--line)}
 .divider span{font-size:.82rem;color:var(--faint);white-space:nowrap}
 
@@ -502,7 +526,38 @@ function addLobbyChat(m){
   else d.innerHTML='<span class="who">'+esc(m.name)+'</span>：'+esc(m.text);
   log.appendChild(d); log.scrollTop=log.scrollHeight;
   while(log.children.length>80) log.removeChild(log.firstChild);
+  try{ if(window.__bumpLobbyUnread) window.__bumpLobbyUnread(); }catch(e){}
 }
+
+// 手机标签切换
+(function(){
+  var tabs=document.getElementById('tabs');
+  if(!tabs) return;
+  document.body.classList.add('tb-tables');
+  var unread=0;
+  tabs.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      tabs.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      document.body.className=document.body.className.replace(/tb-\w+/g,'').trim();
+      document.body.classList.add('tb-'+b.dataset.tb);
+      if(b.dataset.tb==='chat'){
+        unread=0;
+        var bd=document.getElementById('tb-unread');
+        if(bd) bd.style.display='none';
+        var log=document.getElementById('lc-log');
+        if(log) log.scrollTop=log.scrollHeight;
+      }
+    };
+  });
+  window.__bumpLobbyUnread=function(){
+    if(document.body.classList.contains('tb-chat')) return;
+    if(window.innerWidth>720) return;
+    unread++;
+    var bd=document.getElementById('tb-unread');
+    if(bd){ bd.textContent=unread; bd.style.display='inline-block'; }
+  };
+})();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 </script>
