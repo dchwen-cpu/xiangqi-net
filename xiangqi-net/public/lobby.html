@@ -166,6 +166,7 @@ button.go:disabled{opacity:.4;cursor:default}
 #lc-log .sys{color:var(--faint);font-style:italic;font-size:.82rem}
 #lc-in{display:flex;gap:6px;padding:8px;border-top:1px solid var(--line);flex-shrink:0}
 #lc-in input{flex:1}
+@keyframes aiHintIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 </style>
 </head>
 <body>
@@ -332,7 +333,7 @@ function renderAI(){
     el.querySelector('button').onclick=function(){
       setAiPref(x.l);                     // 记住选择
       var payload={level:x.l};
-      if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; }
+      if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; hideAiPickHint(); }
       socket.emit('lobby:playAI',payload,function(res){
         if(res&&res.ok){
           location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
@@ -525,23 +526,49 @@ function updateStatus(list){
   $('rs-waiting').textContent=w+' 桌';
 }
 
-// 「和电脑下」→ 引导到「电脑棋手」栏选级；记下是为哪张桌选的
+// 「和电脑下」→ 弹出提示，引导到「电脑棋手」栏选级；记下是为哪张桌选的
 var aiPickTarget=null;
 function goPickAI(tableId){
   aiPickTarget=tableId;
-  // 手机端：切到"棋友"标签
+  // 手机端：先切到"棋友"标签，提示条才能定位到可见的面板
   var tabs=document.getElementById('tabs');
   if(tabs && window.innerWidth<=720){
     var btn=tabs.querySelector('[data-tb="people"]');
     if(btn) btn.click();
   }
+  showAiPickHint();
   var panel=document.querySelector('.panel.ai');
-  if(panel){
-    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-    panel.style.outline='2px solid var(--jade)';
-    panel.style.outlineOffset='2px';
-    setTimeout(function(){ panel.style.outline=''; },1800);
-  }
+  if(panel) panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// 明确的浮层提示：请选择电脑棋力水平
+var aiHintTimer=null;
+function showAiPickHint(){
+  var old=document.getElementById('ai-pick-hint');
+  if(old) old.remove();
+  var box=document.createElement('div');
+  box.id='ai-pick-hint';
+  box.style.cssText='position:fixed;left:50%;top:18px;transform:translateX(-50%);'
+    +'z-index:99999;background:var(--seal);color:#fff;padding:10px 20px;border-radius:8px;'
+    +'font-family:var(--kai);font-size:.95rem;letter-spacing:.06em;'
+    +'box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;'
+    +'animation:aiHintIn .25s ease';
+  box.innerHTML='请选择电脑棋力水平 →'
+    +'<span style="cursor:pointer;opacity:.8;font-family:var(--song);font-size:.85rem;'
+    +'border:1px solid rgba(255,255,255,.5);border-radius:4px;padding:1px 8px" id="ai-hint-close">取消</span>';
+  document.body.appendChild(box);
+  document.getElementById('ai-hint-close').onclick=function(){
+    aiPickTarget=null;
+    box.remove();
+    clearTimeout(aiHintTimer);
+  };
+  clearTimeout(aiHintTimer);
+  aiHintTimer=setTimeout(function(){ if(box.parentNode) box.remove(); },6000);
+}
+function hideAiPickHint(){
+  clearTimeout(aiHintTimer);
+  var box=document.getElementById('ai-pick-hint');
+  if(box) box.remove();
 }
 
 // ── 大厅聊天 ──
