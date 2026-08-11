@@ -163,6 +163,20 @@
           uiBuilt=true;
           // 新顶栏搭好、body padding 生效后，强制棋盘按最新可用空间重算一次
           try{ if(typeof sizeCanvas==='function') sizeCanvas(true); }catch(e){}
+          // 保险：窗口尺寸变化（含手机横竖屏切换）时，我们自己的顶栏结构
+          // 不会变，但仍主动补一次强制重算+重绘，避免任何边缘情况下棋盘没跟着调整
+          if(!window.__netResizeBound){
+            window.__netResizeBound = true;
+            var _rTimer=null;
+            function _onResize(){
+              clearTimeout(_rTimer);
+              _rTimer=setTimeout(function(){
+                try{ if(typeof sizeCanvas==='function') sizeCanvas(true); if(typeof draw==='function') draw(); }catch(e){}
+              }, 150);
+            }
+            window.addEventListener('resize', _onResize);
+            window.addEventListener('orientationchange', _onResize);
+          }
           setupHooks(socket);
           doSync(st, socket);
           // 如有历史着法，从第一步开始计时
@@ -453,7 +467,7 @@
       // 只留一条紧凑顶栏，取消底栏——把腾出的空间都还给棋盘
       'body{padding-top:40px!important;padding-bottom:0!important}',
       '#net-top{position:fixed;top:0;left:0;right:0;height:40px;z-index:2147483647;',
-        'display:flex;align-items:center;gap:7px;padding:0 10px;',
+        'display:flex;align-items:center;gap:7px;padding:0 10px;overflow:hidden;',
         'background:#9d2c21;color:#f2e8d5;font:12.5px "Songti SC","SimSun",serif}',
       '#net-top b{font-family:"Kaiti SC","STKaiti","楷体",serif;font-size:.92rem;letter-spacing:.08em;flex-shrink:0}',
       '#net-exit{color:#f2e8d5;text-decoration:none;font-size:11px;opacity:.8;',
