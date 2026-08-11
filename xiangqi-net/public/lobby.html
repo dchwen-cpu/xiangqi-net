@@ -63,9 +63,21 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   body.tb-people .col-left{display:none}
   #lobby-chat{margin-top:10px}
   #lc-log{height:200px}
-  .trow{padding:8px 11px;margin-bottom:6px}
-  .trow-main{gap:8px}
-  .trow .nm{min-width:auto;font-size:.98rem}
+  /* 桌子卡片：主动做成"第一行棋桌名、第二行座位信息"的两行式布局，
+     而不是让内容在不确定的地方被动溢出换行——那才是之前"很乱"的原因。
+     两行都收紧字体和内边距，整体更紧凑，一屏能显示的桌数明显增多。 */
+  .trow{padding:6px 9px;margin-bottom:5px}
+  .trow-main{gap:2px 8px;align-items:baseline}
+  .trow .nm{min-width:auto;font-size:.86rem;flex:0 0 auto}
+  .trow .seats{font-size:.76rem;min-width:0;flex:1 1 100%;line-height:1.6}
+  .trow .seats button.mini{font-size:.7rem;padding:1px 7px;margin-left:3px}
+  .seat-btn{font-size:.76rem;padding:2px 9px}
+  .tag{font-size:.66rem;padding:1px 6px}
+  .tag.start-tag{font-size:.7rem;padding:2px 9px}
+  .tagwrap{margin-left:4px}
+  .trow .acts button{font-size:.76rem;padding:4px 9px}
+  /* 状态栏姓名列表太长时收起省略，避免把顶部挤高 */
+  #rs-names{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}

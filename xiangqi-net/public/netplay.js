@@ -543,7 +543,23 @@
         '#net-req-bar{right:0}',
         '#net-top{gap:5px;padding:0 7px}',
         '#net-top b{font-size:.85rem}',
-        '#net-players{display:none}',   // 手机屏太窄，姓名让位给按钮组，聊天区仍能看到双方是谁
+        '#net-players{display:none}',   // 手机顶栏太窄，姓名让位；聊天记录里仍能看到双方是谁
+        // 按钮组挪到棋盘下方后的样式：不再是顶栏里的横向滚动条，
+        // 改为正常文档流的一块，铺满宽度、按钮自由换行，空间比顶栏宽裕得多
+        '#net-top-btns.below-board{position:static;display:flex;flex-wrap:wrap;',
+          'gap:7px;padding:12px 12px 18px;overflow:visible;height:auto;',
+          'background:#e4dabf;border-top:2px solid #9d2c21}',
+        '#net-top-btns.below-board button{flex:1 1 auto;min-width:84px;',
+          'text-align:center;background:#f3ead6;border:1px solid #cabd9f;',
+          'color:#443c30;padding:9px 8px;font-size:13px;border-radius:6px}',
+        '#net-top-btns.below-board button:hover{border-color:#9d2c21;color:#9d2c21}',
+        '#net-top-btns.below-board #nb-resign{background:#9d2c21!important;',
+          'color:#f2e8d5!important;border-color:#9d2c21!important}',
+        '#net-top-btns.below-board #nb-ailv-wrap{flex:1 1 100%;background:#f3ead6;',
+          'border:1px solid #cabd9f;color:#443c30;padding:7px 10px}',
+        '#net-top-btns.below-board #nb-ailv-wrap span{color:#8a8069}',
+        '#net-top-btns.below-board #nb-ailv-wrap select{background:#fff;color:#443c30;',
+          'border:1px solid #cabd9f}',
       '}',
       '#nb-unread{background:#9d2c21;color:#fff;border-radius:9px;',
         'padding:0 5px;font-size:11px;margin-left:5px}'
@@ -559,23 +575,29 @@
       : '';
     top.innerHTML='<b>象棋室</b>'
       +'<a href="../" id="net-exit">退出</a>'
-      +'<div id="net-top-btns">'
-        +'<button id="nb-opts">⚙ 设置</button>'
-        +'<button id="nb-endgame">🏳 结束棋局</button>'
-        +'<span id="nb-ailv-wrap"><span>棋力</span><select id="nb-ailv"></select></span>'
-        +'<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
-        +'<button id="nb-undo">悔棋</button>'
-        +'<button id="nb-draw">求和</button>'
-        +'<button id="nb-flip">↕ 翻转</button>'
-        +'<button id="nb-review">🔍 复盘</button>'
-        +'<button id="nb-resign">认输</button>'
-      +'</div>'
       +'<span id="net-players">'
         +'<span class="pn" id="pn-red">红：—</span>'
         +'<span class="sep">·</span>'
         +'<span class="pn" id="pn-black">黑：—</span>'
       +'</span>'
       +timerStr;
+
+    // 菜单按钮组：独立元素，按屏幕宽度决定放哪——
+    // 桌面横向空间足够，放进顶栏里（横排，放不下就横向滚动）；
+    // 手机顶栏太窄放不下，改放在棋盘下方（那里空间充足，正常文档流，
+    // 不会影响棋盘自身的尺寸计算，放不下就让整页往下滚一点即可）。
+    var btns=document.createElement('div'); btns.id='net-top-btns';
+    btns.innerHTML='<button id="nb-opts">⚙ 设置</button>'
+      +'<button id="nb-endgame">🏳 结束棋局</button>'
+      +'<span id="nb-ailv-wrap"><span>棋力</span><select id="nb-ailv"></select></span>'
+      +'<button id="nb-chat">聊天<span id="nb-unread"></span></button>'
+      +'<button id="nb-undo">悔棋</button>'
+      +'<button id="nb-draw">求和</button>'
+      +'<button id="nb-flip">↕ 翻转</button>'
+      +'<button id="nb-review">🔍 复盘</button>'
+      +'<button id="nb-resign">认输</button>';
+    var isMobileLayout = window.innerWidth<=580;
+    if(isMobileLayout) btns.classList.add('below-board');
 
     // 顶栏正下方的小提示条（原来常驻的"轮到你走"文字改成这个，只在有事要说时才弹出）
     var statusEl=document.createElement('div'); statusEl.id='net-status';
@@ -595,6 +617,10 @@
     reqBar.innerHTML='<span id="req-text"></span><button id="req-yes">同意</button><button id="req-no">拒绝</button>';
 
     document.body.appendChild(top);
+    // 按钮组：桌面挂进顶栏（横排）；手机挂到 body 末尾（自然落在棋盘下方，
+    // 正常文档流，不影响棋盘尺寸计算，放不下就随页面滚动到）
+    if(isMobileLayout) document.body.appendChild(btns);
+    else top.appendChild(btns);
     document.body.appendChild(statusEl);
     document.body.appendChild(side);
     document.body.appendChild(rvBar);
