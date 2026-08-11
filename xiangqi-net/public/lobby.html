@@ -37,25 +37,32 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   padding:0 5px;font-size:.72rem;margin-left:4px}
 
 @media(max-width:720px){
-  .wrap{padding:0 10px 8px;overflow-y:auto}
-  html,body{overflow:auto}
-  header{padding:9px 0 6px;flex-shrink:0}
+  /* 手机端彻底退出桌面那套"整页锁一屏、内部flex分高度"的设计，
+     改用最朴素可靠的自然文档流+页面滚动——手机上滚动列表是正常操作，
+     不像棋盘那样必须严格不出视口。之前用 min-height:50vh/40vh 之类
+     去凑高度、又同时开 overflow:auto，两套逻辑互相打架，
+     产生的错位/参差不齐就是"很乱"的根源。 */
+  html,body{height:auto;overflow:visible}
+  body{display:block}
+  .wrap{flex:none;height:auto;padding:0 10px 16px}
+  header{padding:9px 0 6px}
   header .t{font-size:1.2rem}
   header .s{display:none}
-  #room-status{gap:10px;font-size:.76rem;flex-shrink:0}
+  #room-status{gap:10px;font-size:.76rem}
   .divider{display:none}
-  .tabs{display:flex;flex-shrink:0}
-  .main-grid{flex-direction:column;gap:8px;flex:none}
-  .main-top{flex-direction:column;flex:none;min-height:50vh}
-  .col-left,.col-right{width:100%}
-  .col-left{flex:1;min-height:40vh}
-  .col-right{flex:none}
-  .panel.people{max-height:none;flex:1;min-height:150px}
-.panel.ai{max-height:none;flex:0 0 auto}
-  /* 按标签显示：棋桌 / 棋友，闲聊始终显示在最下面（随页面滚动） */
+  .tabs{display:flex}
+  .main-grid{flex:none;height:auto;display:block}
+  .main-top{flex:none;height:auto;display:block}
+  .col-left,.col-right{width:100%;flex:none;height:auto;display:block}
+  #tables{flex:none;max-height:58vh;overflow-y:auto}   /* 表格列表自己有个上限、自己滚，不抢页面 */
+  .panel.people{max-height:none}
+  .panel.people .plist{max-height:240px}
+  .panel.ai{max-height:none}
+  /* 按标签显示：棋桌 / 棋友二选一；闲聊固定在最下面，随页面自然滚动到 */
   body.tb-tables .col-right{display:none}
   body.tb-people .col-left{display:none}
-  #lobby-chat{flex:0 0 220px;margin-top:4px}
+  #lobby-chat{margin-top:10px}
+  #lc-log{height:200px}
   .trow{padding:8px 11px;margin-bottom:6px}
   .trow-main{gap:8px}
   .trow .nm{min-width:auto;font-size:.98rem}
