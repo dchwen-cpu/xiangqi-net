@@ -465,7 +465,12 @@ function renderTables(list){
       ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
     var watchBtn = ' <button class="sec mini watch" data-act="watch">观战</button>';
     var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
-    var bothReady = !!(t.red && t.black && t.status!=='playing' && t.status!=='over');
+    // 双方就位：真人坐了、或那一侧由电脑占着，都算数——
+    // 跟电脑下棋时电脑记在 t.aiSeat 而不是 t.red/t.black，
+    // 之前只看 t.red&&t.black 会让「▶开始」永远点不亮。
+    var redSeated   = !!t.red   || t.aiSeat==='red';
+    var blackSeated = !!t.black || t.aiSeat==='black';
+    var bothReady = redSeated && blackSeated && t.status!=='playing' && t.status!=='over';
     // 「▶ 开始」固定占据这个位置：双方未坐满时置灰不可点，坐满即刻点亮
     var stag = (t.status==='playing') ? '<span class="tag">对局中</span>'
              : (t.status==='over')    ? '<span class="tag">已结束</span>'
