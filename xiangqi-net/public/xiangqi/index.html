@@ -3049,12 +3049,9 @@ function aiBestMove(side, maxDepth, timeLimit) {
     if (timedOut || (timeLimit && Date.now() - start > timeLimit)) break;
   }
 
-  if (aiLevel === 1) {
-    if (Math.random() < 0.4 && rootMoves.length > 1) {
-      const pick = rootMoves[Math.floor(Math.random()*Math.min(rootMoves.length, 8))];
-      return pick;
-    }
-  }
+  // 低级别不再故意乱走：弱就弱在算得浅（看不到几步以后），
+  // 而不是明知更好却随机挑一步坏棋——那种"忽强忽弱"的手感很差，
+  // 也让 1-3 级彼此难以区分。现在纯以搜索深度分级。
   return bestMove;
 }
 
@@ -3096,9 +3093,6 @@ function startAsyncSearch(side, maxDepth, softLimit, hardLimit, onDone) {
 
   function step() {
     if (!aiThinking) return;
-    if (aiLevel === 1 && Math.random() < 0.4 && rootMoves.length > 1 && depth > 1) {
-      onDone(rootMoves[Math.floor(Math.random()*Math.min(rootMoves.length,8))]); return;
-    }
     const layerStart = Date.now();
     let alpha=-Infinity, beta=Infinity;
     let localBest=null, localBestVal=-Infinity, secondVal=-Infinity;
@@ -3523,11 +3517,12 @@ const STRONG_LEVELS = {
   8: { depth: 17, maxMs: 12000, nnue: true  },
   9: { depth: 19, maxMs: 16000, nnue: true  }
 };
-// 内置引擎档位（纯 JS 算法）。1 级带 40% 乱走(在 aiBestMove/startAsyncSearch 内按 aiLevel===1 触发)。
+// 内置引擎档位（纯 JS 算法）：只按能算几步分级，不做任何故意的坏棋。
+// 深度 1 连对手的直接反击都看不到，必然频繁送子，所以最低也从 2 起步。
 const BUILTIN_LEVELS = {
-  1: { d: 1, soft: 250,  hard: 600  },
-  2: { d: 2, soft: 500,  hard: 1500 },
-  3: { d: 3, soft: 1200, hard: 4000 }
+  1: { d: 2, soft: 350,  hard: 900  },
+  2: { d: 3, soft: 800,  hard: 2200 },
+  3: { d: 4, soft: 1600, hard: 5000 }
 };
 // 兼容旧引用
 const STRONG_THINK_MS = { 4:1500, 5:3000, 6:6000, 7:6000, 8:12000, 9:16000 };
@@ -4617,9 +4612,9 @@ const TRIGGER_LEVEL_LABELS = {
 // ===== 棋力分级说明：三档引擎 × 每档三级 =====
 // 深度为实测值（桌面单线程）；手机 CPU 较慢，实际深度约低 1~2 层
 const LEVEL_INFO = {
-  1: { name:'1 级 · 新手',     peer:'刚学规则的人',     spec:'内置引擎 · 深度 1 + 偶尔随手', note:'会漏着、会送子，适合初学者练手。' },
-  2: { name:'2 级 · 入门',     peer:'初学者',           spec:'内置引擎 · 深度 2',           note:'能看一步吃子，不再乱走，仍易被战术击穿。' },
-  3: { name:'3 级 · 业余',     peer:'一般棋友',         spec:'内置引擎 · 深度 3',           note:'纯离线、零下载。有基本算路，适合休闲对弈。' },
+  1: { name:'1 级 · 新手',     peer:'刚学规则的人',     spec:'内置引擎 · 算 2 步', note:'只看得到眼前一来一往，看不出后续连招，适合初学者练手。' },
+  2: { name:'2 级 · 入门',     peer:'初学者',           spec:'内置引擎 · 算 3 步', note:'能算到自己的后续应手，简单战术已能识破。' },
+  3: { name:'3 级 · 业余',     peer:'一般棋友',         spec:'内置引擎 · 算 4 步', note:'纯离线、零下载。能看两个完整回合，休闲对弈够用。' },
   4: { name:'4 级 · 棋手',     peer:'熟练棋友',         spec:'传统评估 · 目标 8 层',        note:'Stockfish 手写评估，战术明显强于内置引擎。' },
   5: { name:'5 级 · 高手',     peer:'业余强手',         spec:'传统评估 · 目标 11 层',       note:'算路稳，抓失误狠，普通棋友很难赢。' },
   6: { name:'6 级 · 棋协大师', peer:'业余顶尖',         spec:'传统评估 · 目标 14 层',       note:'传统评估的顶格，强且无需下载。日常对弈推荐。' },
@@ -6052,7 +6047,7 @@ document.getElementById('setup-confirm').addEventListener('click', ()=>{
 function refreshEngStatus(){
   const statusEl = document.getElementById('eng-status');
   if (!statusEl) return;
-  if (aiLevel === 1){ statusEl.textContent = ''; return; }
+  if (aiLevel < 4){ statusEl.textContent = ''; return; }   // 1-3 级用内置引擎，不涉及强AI状态
   if (StrongEngine.isReady()){
     statusEl.textContent = '✓ 强AI已就绪';
     statusEl.style.color = '#7ac77a';
