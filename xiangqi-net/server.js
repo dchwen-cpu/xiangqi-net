@@ -228,19 +228,26 @@ io.on('connection', socket => {
     if(!t) t=findFreeTable();
     if(!t){ if(typeof ack==='function') ack({ok:false,err:'该桌已被占用，请换一张'}); return; }
     const pid=reqPid;
+    // 尊重已有座位：如果他已经坐在这桌的某一侧（比如先坐了黑），
+    // 就让电脑坐对面，而不是把人强行拽到红位。没坐过则默认执红。
+    let mySeat='red';
+    if(t.seats.black && t.seats.black.pid===pid) mySeat='black';
+    else if(t.seats.red && t.seats.red.pid===pid) mySeat='red';
+    const aiSide = (mySeat==='red') ? 'black' : 'red';
+
     releaseElsewhere(pid,t.id);
-    t.seats.red={pid,name:socket.data.name||'访客',sid:socket.id};
-    t.seats.black=null;
-    t.aiSeat='black'; t.aiLevel=lv;
+    t.seats[mySeat]={pid,name:socket.data.name||'访客',sid:socket.id};
+    t.seats[aiSide]=null;
+    t.aiSeat=aiSide; t.aiLevel=lv;
     t.moves=[]; t.status='playing';
     t.ready={red:true,black:true};
-    socket.data.tableId=t.id; socket.data.seat='red';
+    socket.data.tableId=t.id; socket.data.seat=mySeat;
     socket.join(t.id);
     setUserStatus(pid,'对局中');
-    sendState(socket,t,'red');
+    sendState(socket,t,mySeat);
     socket.emit('game:start',{options:{...t.options},aiSeat:t.aiSeat,aiLevel:t.aiLevel});
     pushLobby();
-    if(typeof ack==='function') ack({ok:true,tableId:t.id,seat:'red'});
+    if(typeof ack==='function') ack({ok:true,tableId:t.id,seat:mySeat});
   });
 
   // ── 邀请真人对弈 ──
