@@ -363,8 +363,10 @@ function renderAI(){
       if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; hideAiPickHint(); }
       socket.emit('lobby:playAI',payload,function(res){
         if(res&&res.ok){
+          // 用服务器回传的真实座位——若我先坐了黑，电脑会坐红，这里不能写死 red
           location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
-            +'&seat=red&name='+encodeURIComponent(myName());
+            +'&seat='+encodeURIComponent(res.seat||'red')
+            +'&name='+encodeURIComponent(myName());
         } else alert((res&&res.err)||'暂时无法开始');
       });
     }
@@ -450,7 +452,11 @@ function renderTables(list){
     var el=document.createElement('div');
     el.className='trow'+(mine?' mine':'')+(bothSeated?' both':'');
 
-    var canSit = (t.status!=='playing' && t.status!=='over' && !mine);
+    var tableOpen = (t.status!=='playing' && t.status!=='over');
+    // 我已在此桌时，仍允许对空着的另一侧操作（请电脑来坐），
+    // 只是不再显示"再坐一次"的入座按钮——之前用 !mine 一刀切，
+    // 导致坐下后对面的「＋坐红/坐黑」和「和电脑下」一起消失了。
+    var canSit = tableOpen && !mine;
     // 空位本身就是按钮，点一下即入座
     var r = t.red
       ? '<span class="seat-r">● 红 '+esc(t.red)+'</span>'
@@ -460,8 +466,10 @@ function renderTables(list){
       ? '<span class="seat-b">● 黑 '+esc(t.black)+'</span>'
       : (canSit ? '<button class="seat-btn blk" data-act="sit" data-seat="black">＋ 坐黑</button>'
                 : '<span class="seat-e">○ 黑 空位</span>');
-    // 黑位空着 → 一键和电脑下；观战紧随其后
-    var aiBtn = (!t.black && !t.aiSeat && t.status!=='playing' && t.status!=='over')
+    // 「和电脑下」：只要还有一侧空着、且桌上没有电脑，就给出这个入口。
+    // 我自己已坐下时同样显示——那正是"我坐好了，叫电脑来陪我下"的常见场景。
+    var anySeatFree = (!t.red || !t.black);
+    var aiBtn = (anySeatFree && !t.aiSeat && tableOpen)
       ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
     var watchBtn = ' <button class="sec mini watch" data-act="watch">观战</button>';
     var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
