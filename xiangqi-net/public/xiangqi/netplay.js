@@ -230,15 +230,19 @@
     // 再来一局：清面板、重置棋盘（table:state 会随后同步）
     socket.on('game:restart', function(d){
       hideEndPanel();
+      // 再来一局会红黑互换。这里只做能立刻做的重置；
+      // myColor/aiDriving/棋盘翻转方向由紧随其后的 table:state（服务器 resyncAll 发出）
+      // 统一按新座位重新计算，避免在这里用旧的 myColor 去推算而算错边。
       if(d){ aiSeat=d.aiSeat||null; aiLv=d.aiLevel||6; }
       try{ gameOver=false; }catch(e){}
       endReported=false;
+      appliedCount=0;                            // 新局从零手开始计数
       stopTimer();
       if(d && d.options) curOptions=d.options;   // 让子随最新设置在重开局时一并生效
       if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
       else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
       updateTimerDisplay();
-      addChat({name:'系统',seat:'',text:'新一局开始'});
+      addChat({name:'系统',seat:'',text:'新一局开始，红黑互换'});
     });
 
     // 悔棋：用页面内通知条代替 confirm()，避免浏览器拦截弹窗
@@ -405,8 +409,12 @@
     applyingRemote=false;
     try{ turn=st.turn||'r'; if(typeof draw==='function') draw(); }catch(e){}
     try{
-      if(!isSpectator&&myColor==='b'&&typeof boardFlipped!=='undefined'&&!boardFlipped){
-        boardFlipped=true; if(typeof draw==='function') draw();
+      // 按当前执子方双向设定视角：执黑翻转、执红翻回。
+      // 原来只有"黑→翻转"这一个方向，再来一局红黑互换后从黑变红时，
+      // 棋盘会一直卡在翻转状态下不来。
+      if(!isSpectator && myColor && typeof boardFlipped!=='undefined'){
+        var want = (myColor==='b');
+        if(boardFlipped!==want){ boardFlipped=want; if(typeof draw==='function') draw(); }
       }
     }catch(e){}
     // 应用让子
@@ -486,8 +494,10 @@
       '#nb-resign{background:#c0392b!important;border-color:#f2c9c9!important}',
       '#nb-resign:hover{background:#d64536!important}',
       // 双方姓名：跟在按钮组后面，固定不滚动；轮到谁走就给谁加亮
+      // 注意：这里不能用 margin-left:auto——flex 里的 auto margin 会吸收掉全部剩余空间，
+      // 结果把前面的菜单按钮组一起挤到右边。改为普通间距，整条栏保持左对齐。
       '#net-players{flex-shrink:0;min-width:0;max-width:150px;overflow:hidden;',
-        'text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin-left:auto}',
+        'text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin-left:6px}',
       '#net-players .pn{opacity:.68;transition:opacity .15s}',
       '#net-players .pn.on-turn{opacity:1;font-weight:bold;text-shadow:0 0 6px rgba(255,255,255,.5)}',
       '#net-players .sep{opacity:.5;margin:0 3px}',
