@@ -179,6 +179,22 @@ function releaseElsewhere(pid, keepTableId){
     }
   }
 }
+// 把某局的观战情况（人数 + 名单）推给该局所有人（对局者与旁观者都收）
+function pushSoloWatchers(id){
+  const g = soloGames.get(id);
+  if(!g) return;
+  const room = io.sockets.adapter.rooms.get('solo:'+id);
+  const names = [];
+  if(room){
+    for(const sid of room){
+      const sk = io.sockets.sockets.get(sid);
+      if(sk && sk.id !== g.sid) names.push(sk.data.name || '访客');
+    }
+  }
+  g.watchers = names.length;
+  io.to('solo:'+id).emit('solo:watchers', { count: names.length, names, player: g.name, level: g.level });
+}
+
 function pushUsers(){
   const list=[...users.values()].map(u=>({pid:u.pid,name:u.name,status:u.status}));
   io.to('lobby').emit('lobby:users', list);
@@ -524,6 +540,7 @@ io.on('connection', socket => {
     });
     socket.data.soloId = id;
     socket.join('solo:'+id);
+    pushSoloWatchers(id);
     pushLobby();
     if(typeof ack==='function') ack({ok:true, id});
   });
@@ -542,8 +559,7 @@ io.on('connection', socket => {
     if(!g){ if(typeof ack==='function') ack({ok:false,err:'该对局已结束'}); return; }
     socket.data.watchId = g.id;
     socket.join('solo:'+g.id);
-    const room = io.sockets.adapter.rooms.get('solo:'+g.id);
-    g.watchers = Math.max(0, (room ? room.size : 1) - 1);
+    pushSoloWatchers(g.id);
     pushLobby();
     if(typeof ack==='function') ack({ok:true, name:g.name, level:g.level});
     if(g.state) socket.emit('solo:state', g.state);       // 进来先补一份当前局面
@@ -554,12 +570,7 @@ io.on('connection', socket => {
     if(!id) return;
     socket.leave('solo:'+id);
     socket.data.watchId = null;
-    const g = soloGames.get(id);
-    if(g){
-      const room = io.sockets.adapter.rooms.get('solo:'+id);
-      g.watchers = Math.max(0, (room ? room.size : 1) - 1);
-      pushLobby();
-    }
+    if(soloGames.get(id)){ pushSoloWatchers(id); pushLobby(); }
   });
 
   socket.on('solo:end', ()=>{
@@ -657,12 +668,9 @@ io.on('connection', socket => {
       socket.data.soloId = null;
     }
     if(socket.data.watchId){
-      const g = soloGames.get(socket.data.watchId);
-      if(g){
-        const room = io.sockets.adapter.rooms.get('solo:'+socket.data.watchId);
-        g.watchers = Math.max(0, (room ? room.size : 1) - 1);
-      }
+      const wid = socket.data.watchId;
       socket.data.watchId = null;
+      setTimeout(()=>{ if(soloGames.get(wid)){ pushSoloWatchers(wid); pushLobby(); } }, 50);
     }
 
     // 从在厅名单移除（仅当该 pid 的当前连接就是本 socket）
