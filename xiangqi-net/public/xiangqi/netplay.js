@@ -264,6 +264,7 @@
       var _t=triggerAI;
       window.triggerAI=function(){
         if(applyingRemote) return;                 // 回放历史着法时不许引擎插手
+        if(isLocalSoloMode()) return _t.apply(this,arguments);   // 残局/测评：引擎照常工作
         if(window.__netMode && !aiDriving) return; // 纯人人对弈：引擎永不出手
         return _t.apply(this,arguments);
       };
@@ -273,6 +274,11 @@
     if(typeof makeMove==='function'&&!makeMove.__net){
       var _m=makeMove;
       window.makeMove=function(fr,fc,tr,tc){
+        // 单机旁路：用户在与电脑对弈时进了残局闯关或棋力测评，
+        // 那已是完全独立的单机局面，座位/回合跟联网对局无关——
+        // 不能按联网规则拦截，也不该把这些着法发给服务器。
+        if(isLocalSoloMode()){ return _m(fr,fc,tr,tc); }
+
         if(window.__netMode && isSpectator && !applyingRemote) return;
         if(window.__netMode && !applyingRemote){
           var t = (typeof turn!=='undefined') ? turn : null;
@@ -319,8 +325,29 @@
     }catch(e){}
   }
 
+  // 是否处于"单机独立玩法"（残局闯关 / 棋力测评）——
+  // 这两种玩法有自己的局面和规则，与联网对局无关，联网层应完全让路。
+  function isLocalSoloMode(){
+    try{
+      if(typeof endgameMode !== 'undefined' && endgameMode) return true;
+      if(typeof assessActive !== 'undefined' && assessActive) return true;
+    }catch(e){}
+    return false;
+  }
+
+  // 标记当前是"与电脑对弈"还是"真人对弈"，CSS 据此决定原生功能是否可用。
+  // 与电脑下本质是单机，残局/测评/重开等全部放行；真人对弈才需要限制。
+  function markGameKind(){
+    try{
+      var vsAI = !!aiSeat;
+      document.body.classList.toggle('net-vs-ai', vsAI);
+      document.body.classList.toggle('net-vs-human', !vsAI);
+    }catch(e){}
+  }
+
   // 根据本桌是否有AI，设置象棋 app 的对局模式
   function applyTableMode(){
+    markGameKind();
     try{
       if(aiDriving && aiSeat){
         mode   = 'ai';
@@ -468,10 +495,16 @@
       // (桌面顶104/底40，手机顶44/底96)，我们的浮层叠加其上却完全不在预算内，
       // 顶+底一起超支就把棋盘挤出可视区域。
       'h1,#status{display:none!important}',
-      // 隐藏 AI 控件
-      '#trig-level,#trig-redlevel,#trig-blacklevel,#trig-mode,',
-      '#mtrig-level,#mtrig-mode,#endgame-btn,#assess-btn,#restart,',
-      '#draw-btn,#hint-btn,#undo,#mm-btn{display:none!important}',
+      // 原生控件的隐藏改为按对局类型区分（body 上挂 net-vs-human / net-vs-ai 类）：
+      //   · 真人对弈：残局/测评/重开/切换棋力这些会破坏双方对局，必须禁用
+      //   · 与电脑对弈：本质就是单机，全部原生功能照常可用，不做任何限制
+      'body.net-vs-human #trig-level,body.net-vs-human #trig-redlevel,',
+      'body.net-vs-human #trig-blacklevel,body.net-vs-human #trig-mode,',
+      'body.net-vs-human #mtrig-level,body.net-vs-human #mtrig-mode,',
+      'body.net-vs-human #endgame-btn,body.net-vs-human #assess-btn,',
+      'body.net-vs-human #restart,body.net-vs-human #draw-btn,',
+      'body.net-vs-human #hint-btn,body.net-vs-human #undo,',
+      'body.net-vs-human #mm-btn{display:none!important}',
       // 只留一条紧凑顶栏，取消底栏——把腾出的空间都还给棋盘
       'body{padding-top:40px!important;padding-bottom:0!important}',
       '#net-top{position:fixed;top:0;left:0;right:0;height:40px;z-index:2147483647;',
@@ -747,6 +780,8 @@
       };
       refreshAiLvUI();
     })();
+
+    markGameKind();     // 首次建界面时先定好对局类型，避免原生控件闪现/误禁
 
     // 引擎文件自检：缺失时明确提示，避免"强AI默默变内置AI"
     checkEngineFiles();
