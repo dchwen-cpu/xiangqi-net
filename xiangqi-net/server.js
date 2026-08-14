@@ -77,6 +77,11 @@ app.get('/engine-check', (_,res)=>{
 const tables     = new Map();
 const recoTimers = new Map();
 const users      = new Map();   // pid -> {pid,name,sid,status}
+// 人机对局转播：服务器只当转播台，不做任何裁决。
+// 棋局全在对局者浏览器里跑，他推快照上来，服务器原样转给旁观者。
+// 因为只有一个真相来源（对局者本地），不存在与服务器状态错位的可能。
+const soloGames  = new Map();   // id -> {id,name,level,sid,state,watchers,ts}
+let   soloSeq    = 1;
 const invites    = new Map();   // inviteId -> {tableId,fromPid,toPid,ts}
 let seq = 1;
 const newId = () => 't'+(seq++).toString(36)+Date.now().toString(36).slice(-3);
@@ -116,7 +121,13 @@ function ensureMinTables(){
   }
 }
 const lobbyList  = ()  => { ensureMinTables(); return [...tables.values()].map(summary); };
-const pushLobby  = ()  => io.to('lobby').emit('lobby:list', lobbyList());
+const soloList   = ()  => [...soloGames.values()].map(g=>({
+  id:g.id, name:g.name, level:g.level, watchers:g.watchers||0
+}));
+const pushLobby  = ()  => {
+  io.to('lobby').emit('lobby:list', lobbyList());
+  io.to('lobby').emit('lobby:solo', soloList());
+};
 const playersMsg = (t,extra) => ({
   red:   t.aiSeat==='red'   ? AI_NAME : (t.seats.red   ? t.seats.red.name   : null),
   black: t.aiSeat==='black' ? AI_NAME : (t.seats.black ? t.seats.black.name : null),
@@ -209,6 +220,7 @@ io.on('connection', socket => {
       });
     }
     socket.emit('lobby:list', lobbyList());
+    socket.emit('lobby:solo', soloList());
     pushOnline(); pushUsers();
   });
 
@@ -501,6 +513,64 @@ io.on('connection', socket => {
     broadcastRoom(t); pushLobby();
   });
 
+  // ── 人机对局转播 ──
+  socket.on('solo:begin', (p, ack)=>{
+    const id = 's'+(soloSeq++).toString(36)+Date.now().toString(36).slice(-3);
+    soloGames.set(id, {
+      id,
+      name : (p&&p.name) ? String(p.name).slice(0,20) : '访客',
+      level: Math.min(9, Math.max(1, parseInt(p&&p.level)||6)),
+      sid  : socket.id, state:null, watchers:0, ts:Date.now()
+    });
+    socket.data.soloId = id;
+    socket.join('solo:'+id);
+    pushLobby();
+    if(typeof ack==='function') ack({ok:true, id});
+  });
+
+  // 对局者推来的棋盘快照，原样转给旁观者（不校验、不改动）
+  socket.on('solo:push', (p)=>{
+    const g = soloGames.get(socket.data.soloId);
+    if(!g || g.sid!==socket.id) return;
+    g.state = p; g.ts = Date.now();
+    if(p && p.level) g.level = p.level;
+    socket.to('solo:'+g.id).emit('solo:state', p);
+  });
+
+  socket.on('solo:watch', (p, ack)=>{
+    const g = soloGames.get(p && p.id);
+    if(!g){ if(typeof ack==='function') ack({ok:false,err:'该对局已结束'}); return; }
+    socket.data.watchId = g.id;
+    socket.join('solo:'+g.id);
+    const room = io.sockets.adapter.rooms.get('solo:'+g.id);
+    g.watchers = Math.max(0, (room ? room.size : 1) - 1);
+    pushLobby();
+    if(typeof ack==='function') ack({ok:true, name:g.name, level:g.level});
+    if(g.state) socket.emit('solo:state', g.state);       // 进来先补一份当前局面
+  });
+
+  socket.on('solo:unwatch', ()=>{
+    const id = socket.data.watchId;
+    if(!id) return;
+    socket.leave('solo:'+id);
+    socket.data.watchId = null;
+    const g = soloGames.get(id);
+    if(g){
+      const room = io.sockets.adapter.rooms.get('solo:'+id);
+      g.watchers = Math.max(0, (room ? room.size : 1) - 1);
+      pushLobby();
+    }
+  });
+
+  socket.on('solo:end', ()=>{
+    const id = socket.data.soloId;
+    if(!id) return;
+    io.to('solo:'+id).emit('solo:over');
+    soloGames.delete(id);
+    socket.data.soloId = null;
+    pushLobby();
+  });
+
   socket.on('sync:request', ()=>{ const t=tables.get(socket.data.tableId); if(t) sendState(socket,t,socket.data.seat||'spectate'); });
 
   socket.on('move', m=>{
@@ -580,6 +650,21 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', ()=>{
+    // 人机对局转播的清理：对局者掉线则该转播结束；旁观者掉线则更新人数
+    if(socket.data.soloId){
+      io.to('solo:'+socket.data.soloId).emit('solo:over');
+      soloGames.delete(socket.data.soloId);
+      socket.data.soloId = null;
+    }
+    if(socket.data.watchId){
+      const g = soloGames.get(socket.data.watchId);
+      if(g){
+        const room = io.sockets.adapter.rooms.get('solo:'+socket.data.watchId);
+        g.watchers = Math.max(0, (room ? room.size : 1) - 1);
+      }
+      socket.data.watchId = null;
+    }
+
     // 从在厅名单移除（仅当该 pid 的当前连接就是本 socket）
     const upid=socket.data.pid;
     if(upid && users.get(upid) && users.get(upid).sid===socket.id){
