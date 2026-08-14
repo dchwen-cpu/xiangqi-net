@@ -4,26 +4,25 @@
  */
 (function(){
   var params  = new URLSearchParams(location.search);
-  var tableId = params.get('table');
-  var hasAiParam = !!params.get('aiLevel');
-  if(tableId || hasAiParam){
+  var tableId = params.get('table');                 // 真人对局
+  var hasAiParam = !!params.get('aiLevel');          // 与电脑下棋（纯单机）
+  var hasWatch   = !!params.get('watch');            // 观战人机对局
+
+  // 三种模式都要跳过棋盘程序自带的开场页（越早注入越好，避免闪现）
+  if(tableId || hasAiParam || hasWatch){
     try{
       var _st=document.createElement('style');
+      _st.id='np-hide-intro';
       _st.textContent='#intro-screen{display:none!important;opacity:0!important;visibility:hidden!important}';
       (document.head||document.documentElement).appendChild(_st);
     }catch(e){}
   }
-  if (!tableId) return;
 
-  // 立刻注入：从棋室进来时跳过棋盘程序自带的开场页（越早越好，避免闪现）
-  (function(){
-    try{
-      var st=document.createElement('style');
-      st.id='np-hide-intro';
-      st.textContent='#intro-screen{display:none!important;opacity:0!important;visibility:hidden!important}';
-      (document.head||document.documentElement).appendChild(st);
-    }catch(e){}
-  })();
+  // 三个参数一个都没有 = 直接打开棋盘程序，本层完全不介入，保持纯离线行为。
+  // 注意这里必须三种都判断：早期版本只写了 !tableId 就 return，
+  // 结果带 ?aiLevel= 或 ?watch= 进来时脚本在此提前退出，
+  // 单机顶栏/聊天/转播/观战全都没机会执行。
+  if(!tableId && !hasAiParam && !hasWatch) return;
 
   var seatWanted = decodeURIComponent(params.get('seat')   || 'auto');
   var myName     = decodeURIComponent(params.get('name')   || '访客');
