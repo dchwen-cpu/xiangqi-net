@@ -41,31 +41,325 @@
   var uiBuilt=false, hooksSet=false, endReported=false;
   window.__netMode = false;
 
-  // 如果只有 aiLevel 参数（无 table），纯单机 AI 模式：设好棋力后直接返回
+  // ═══ 观战人机对局（?watch=<id>）═══
+  // 接收对局者推来的棋盘快照并渲染，只看不动。
+  var watchId = params.get('watch');
+  if(watchId){
+    function setupWatch(){
+      try{
+        var scr=document.getElementById('intro-screen');
+        if(scr) scr.style.display='none';
+      }catch(e){}
+      buildWatchUI(watchId);
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setupWatch);
+    else setTimeout(setupWatch, 250);
+    return;   // 不启动联网对局层，也不启动单机层
+  }
+
+  function buildWatchUI(id){
+    // 观战时禁掉一切会改动棋盘的原生控件，纯只读
+    var st=document.createElement('style');
+    st.textContent=[
+      'h1,#status{display:none!important}',
+      '#trig-mode,#mtrig-mode,#trig-level,#trig-redlevel,#trig-blacklevel,',
+      '#mtrig-level,#restart,#draw-btn,#undo,#mm-btn,#hint-btn,',
+      '#endgame-btn,#assess-btn{display:none!important}',
+      'body{padding-top:34px!important}',
+      '#solo-bar{position:fixed;top:0;left:0;right:0;height:34px;z-index:2147483647;',
+        'display:flex;align-items:center;gap:8px;padding:0 10px;overflow:hidden;',
+        'background:#4a7c59;color:#f2e8d5;font:12px "Songti SC","SimSun",serif}',
+      '#solo-bar b{font-family:"Kaiti SC","楷体",serif;font-size:.88rem;letter-spacing:.08em}',
+      '#solo-bar .sp{flex:1}',
+      '#solo-bar a,#solo-bar button{color:#f2e8d5;text-decoration:none;font-size:11.5px;',
+        'background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.34);',
+        'border-radius:4px;padding:3px 10px;cursor:pointer;font-family:"Songti SC",serif}',
+      '#solo-chat{position:fixed;right:10px;bottom:10px;width:250px;height:290px;',
+        'z-index:2147483647;background:#e4dabf;border:1px solid #cabd9f;border-radius:8px;',
+        'display:none;flex-direction:column;box-shadow:0 6px 20px rgba(0,0,0,.25);',
+        'font:13px "Songti SC","SimSun",serif}',
+      '#solo-chat.open{display:flex}',
+      '#solo-chat-hd{padding:6px 11px;border-bottom:1px solid #cabd9f;color:#201d16;',
+        'font-family:"Kaiti SC","楷体",serif;font-size:.9rem;display:flex;align-items:center}',
+      '#solo-chat-hd .x{margin-left:auto;cursor:pointer;color:#8a8069;font-size:15px;line-height:1}',
+      '#solo-log{flex:1;overflow-y:auto;padding:8px 11px;color:#443c30;line-height:1.7;min-height:0}',
+      '#solo-log .who{font-weight:bold;color:#9d2c21}',
+      '#solo-in{display:flex;border-top:1px solid #cabd9f;padding:6px;gap:5px}',
+      '#solo-in input{flex:1;border:1px solid #cabd9f;border-radius:4px;padding:5px 8px;',
+        'background:#ece3d0;color:#201d16;outline:none;font:13px "Songti SC",serif}',
+      '#solo-in button{background:#9d2c21;color:#f2e8d5;border:0;border-radius:4px;',
+        'padding:5px 11px;cursor:pointer;font:13px "Songti SC",serif}',
+      '#solo-unread{background:#fff;color:#9d2c21;border-radius:8px;padding:0 5px;',
+        'font-size:10.5px;margin-left:4px;display:none}',
+      '@media(max-width:580px){#solo-chat{left:10px;right:10px;width:auto;height:52vh}}'
+    ].join('');
+    document.head.appendChild(st);
+
+    var bar=document.createElement('div'); bar.id='solo-bar';
+    bar.innerHTML='<b>观战中</b><span id="watch-info" style="opacity:.9">连接中…</span>'
+      +'<div class="sp"></div>'
+      +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
+      +'<a href="../">← 返回大厅</a>';
+    document.body.appendChild(bar);
+
+    var box=document.createElement('div'); box.id='solo-chat';
+    box.innerHTML='<div id="solo-chat-hd">厅内闲聊<span class="x" id="solo-chat-x">×</span></div>'
+      +'<div id="solo-log"></div>'
+      +'<div id="solo-in"><input id="solo-msg" maxlength="150" placeholder="说点什么…" autocomplete="off">'
+      +'<button id="solo-send">发</button></div>';
+    document.body.appendChild(box);
+
+    // 观战只读：任何走子一律拦下
+    try{
+      if(typeof makeMove==='function' && !makeMove.__watch){
+        window.makeMove=function(){ return; };
+        window.makeMove.__watch=true;
+      }
+      if(typeof triggerAI==='function' && !triggerAI.__watch){
+        window.triggerAI=function(){ return; };
+        window.triggerAI.__watch=true;
+      }
+    }catch(e){}
+
+    var sc3=document.createElement('script'); sc3.src='/socket.io/socket.io.js';
+    sc3.onload=function(){
+      var sock=io(); var unread=0;
+      var myName=decodeURIComponent(params.get('name')||'')
+        || (localStorage.getItem('lsz_name')||'').trim() || '访客';
+      sock.on('connect', function(){
+        sock.emit('lobby:enter',{name:myName});
+        sock.emit('solo:watch',{id:id}, function(res){
+          var el=document.getElementById('watch-info');
+          if(res&&res.ok){ if(el) el.textContent=esc(res.name)+' vs 电脑 '+res.level+'级'; }
+          else { if(el) el.textContent=(res&&res.err)||'该对局已结束'; }
+        });
+      });
+      sock.on('solo:state', function(snap){ applyWatchSnapshot(snap); });
+      sock.on('solo:over', function(){
+        var el=document.getElementById('watch-info');
+        if(el) el.textContent='对局已结束';
+      });
+      sock.on('lobby:chat', function(m){
+        var log=document.getElementById('solo-log'); if(!log) return;
+        var d=document.createElement('div');
+        d.innerHTML='<span class="who">'+esc(m.name)+'</span>：'+esc(m.text);
+        log.appendChild(d); log.scrollTop=log.scrollHeight;
+        while(log.children.length>60) log.removeChild(log.firstChild);
+        if(!box.classList.contains('open')){
+          unread++;
+          var u=document.getElementById('solo-unread');
+          if(u){ u.textContent=unread; u.style.display='inline-block'; }
+        }
+      });
+      function send(){
+        var i=document.getElementById('solo-msg'); var v=(i.value||'').trim();
+        if(v){ sock.emit('lobby:chat',{text:v,name:myName}); i.value=''; }
+      }
+      document.getElementById('solo-send').onclick=send;
+      document.getElementById('solo-msg').addEventListener('keydown',function(e){
+        if(e.key==='Enter') send();
+      });
+      document.getElementById('solo-chat-btn').onclick=function(){
+        box.classList.toggle('open');
+        if(box.classList.contains('open')){
+          unread=0;
+          var u=document.getElementById('solo-unread'); if(u) u.style.display='none';
+          var log=document.getElementById('solo-log'); if(log) log.scrollTop=log.scrollHeight;
+        }
+      };
+      document.getElementById('solo-chat-x').onclick=function(){ box.classList.remove('open'); };
+    };
+    document.head.appendChild(sc3);
+
+    setTimeout(function(){
+      try{ if(typeof sizeCanvas==='function') sizeCanvas(true); if(typeof draw==='function') draw(); }catch(e){}
+    }, 120);
+    window.addEventListener('resize', function(){
+      try{ if(typeof sizeCanvas==='function') sizeCanvas(true); }catch(e){}
+    });
+  }
+
+  // 把收到的快照还原到棋盘上并重绘
+  function applyWatchSnapshot(snap){
+    if(!snap || !snap.b) return;
+    try{
+      var flat=snap.b.split(',');
+      var i=0;
+      for(var r=0;r<ROWS;r++){
+        for(var c=0;c<COLS;c++){
+          var v=flat[i++];
+          board[r][c] = v ? { side:v.charAt(0), type:v.slice(1) } : null;
+        }
+      }
+      turn = snap.t || 'r';
+      if(typeof draw==='function') draw();
+      var el=document.getElementById('watch-info');
+      if(el && snap.st) el.textContent = el.textContent.split('　')[0] + '　' + snap.st;
+    }catch(e){}
+  }
+
+  // ═══ 纯单机模式（?aiLevel=N，无 table）═══
+  // 与电脑下棋不经服务器托管：棋局完全在本地跑，所有原生功能（选边、先走方、
+  // 残局、测评、重开、悔棋…）一律可用，不会再和服务器分配的座位/回合打架。
+  // 只保留一条细顶栏用来回大厅，外加大厅公共聊天。
   var aiLevelParam = parseInt(params.get('aiLevel'))||0;
   if(aiLevelParam && !tableId){
-    // 纯单机 AI 模式：设棋力 + 加"返回棋室"按钮，不启动联网层
-    function setupAiMode(){
-      // 设棋力
+    function setupSoloMode(){
+      // 设好初始棋力（进来后仍可在棋盘里自由改）
       try{
         aiLevel = aiLevelParam;
         if(typeof redAiLevel!=='undefined') redAiLevel=aiLevelParam;
         if(typeof refreshTriggerLabels==='function') refreshTriggerLabels();
         if(typeof prepEngineForLevel==='function') prepEngineForLevel(aiLevelParam);
       }catch(e){}
-      // 加"返回棋室"按钮（右上角红色小标签）
-      var btn=document.createElement('a');
-      btn.href='../';
-      btn.textContent='← 返回大厅';
-      btn.style.cssText='position:fixed;top:8px;right:12px;z-index:9999999;'
-        +'color:#f2e8d5;background:#9d2c21;text-decoration:none;'
-        +'padding:4px 12px;border-radius:4px;font:12px "Songti SC","SimSun",serif;'
-        +'box-shadow:0 2px 8px rgba(0,0,0,.25);letter-spacing:.05em';
-      document.body.appendChild(btn);
+      buildSoloBar();
     }
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setupAiMode);
-    else setTimeout(setupAiMode, 300);
-    return;   // 不启动联网层
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setupSoloMode);
+    else setTimeout(setupSoloMode, 300);
+    return;   // 不启动联网对局层
+  }
+
+  // 把当前棋盘拍成快照。用轮询而不是挂钩走子函数——
+  // 这样悔棋、重开、换边、进出残局等所有变化都能捕捉到，
+  // 而且完全不碰棋盘的任何原生逻辑，零干扰。
+  function snapshotBoard(){
+    try{
+      if(typeof board==='undefined' || !board) return null;
+      var flat=[];
+      for(var r=0;r<board.length;r++){
+        for(var c=0;c<board[r].length;c++){
+          var p=board[r][c];
+          flat.push(p ? (p.side+p.type) : '');
+        }
+      }
+      return {
+        b: flat.join(','),
+        t: (typeof turn!=='undefined') ? turn : 'r',
+        lv: (typeof aiLevel!=='undefined') ? aiLevel : 6,
+        st: (function(){ try{ var e=document.getElementById('status');
+             return e ? (e.textContent||'').slice(0,40) : ''; }catch(e){ return ''; } })()
+      };
+    }catch(e){ return null; }
+  }
+  function startBroadcast(sock){
+    var last='';
+    setInterval(function(){
+      var snap=snapshotBoard();
+      if(!snap) return;
+      var sig=snap.b+'|'+snap.t+'|'+snap.st;
+      if(sig===last) return;          // 没变化就不推，省流量
+      last=sig;
+      try{ sock.emit('solo:push', snap); }catch(e){}
+    }, 700);
+  }
+
+  // 单机模式的细顶栏：返回大厅 + 厅内聊天（不干扰棋盘任何原生功能）
+  function buildSoloBar(){
+    var st=document.createElement('style');
+    st.textContent=[
+      'body{padding-top:34px!important}',
+      '#solo-bar{position:fixed;top:0;left:0;right:0;height:34px;z-index:2147483647;',
+        'display:flex;align-items:center;gap:8px;padding:0 10px;overflow:hidden;',
+        'background:#9d2c21;color:#f2e8d5;font:12px "Songti SC","SimSun",serif}',
+      '#solo-bar b{font-family:"Kaiti SC","楷体",serif;font-size:.88rem;letter-spacing:.08em}',
+      '#solo-bar .sp{flex:1}',
+      '#solo-bar a,#solo-bar button{color:#f2e8d5;text-decoration:none;font-size:11.5px;',
+        'background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.32);',
+        'border-radius:4px;padding:3px 10px;cursor:pointer;',
+        'font-family:"Songti SC","SimSun",serif}',
+      '#solo-bar a:hover,#solo-bar button:hover{background:rgba(255,255,255,.26)}',
+      '#solo-chat{position:fixed;right:10px;bottom:10px;width:250px;height:290px;',
+        'z-index:2147483647;background:#e4dabf;border:1px solid #cabd9f;border-radius:8px;',
+        'display:none;flex-direction:column;box-shadow:0 6px 20px rgba(0,0,0,.25);',
+        'font:13px "Songti SC","SimSun",serif}',
+      '#solo-chat.open{display:flex}',
+      '#solo-chat-hd{padding:6px 11px;border-bottom:1px solid #cabd9f;color:#201d16;',
+        'font-family:"Kaiti SC","楷体",serif;font-size:.9rem;display:flex;align-items:center}',
+      '#solo-chat-hd .x{margin-left:auto;cursor:pointer;color:#8a8069;font-size:15px;line-height:1}',
+      '#solo-log{flex:1;overflow-y:auto;padding:8px 11px;color:#443c30;line-height:1.7;min-height:0}',
+      '#solo-log .who{font-weight:bold;color:#9d2c21}',
+      '#solo-in{display:flex;border-top:1px solid #cabd9f;padding:6px;gap:5px}',
+      '#solo-in input{flex:1;border:1px solid #cabd9f;border-radius:4px;padding:5px 8px;',
+        'background:#ece3d0;color:#201d16;outline:none;font:13px "Songti SC",serif}',
+      '#solo-in button{background:#9d2c21;color:#f2e8d5;border:0;border-radius:4px;',
+        'padding:5px 11px;cursor:pointer;font:13px "Songti SC",serif}',
+      '#solo-unread{background:#fff;color:#9d2c21;border-radius:8px;padding:0 5px;',
+        'font-size:10.5px;margin-left:4px;display:none}',
+      '@media(max-width:580px){#solo-chat{left:10px;right:10px;width:auto;height:52vh}}'
+    ].join('');
+    document.head.appendChild(st);
+
+    var bar=document.createElement('div'); bar.id='solo-bar';
+    bar.innerHTML='<b>象棋室</b>'
+      +'<span style="opacity:.85">与电脑对弈</span>'
+      +'<span id="solo-watchers" style="opacity:.8;font-size:11px"></span>'
+      +'<div class="sp"></div>'
+      +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
+      +'<a href="../">← 返回大厅</a>';
+    document.body.appendChild(bar);
+
+    var box=document.createElement('div'); box.id='solo-chat';
+    box.innerHTML='<div id="solo-chat-hd">厅内闲聊<span class="x" id="solo-chat-x">×</span></div>'
+      +'<div id="solo-log"></div>'
+      +'<div id="solo-in"><input id="solo-msg" maxlength="150" placeholder="说点什么…" autocomplete="off">'
+      +'<button id="solo-send">发</button></div>';
+    document.body.appendChild(box);
+
+    // 连 socket：一为大厅聊天，二为把棋盘快照转播给旁观的朋友。
+    // 注意棋局本身完全在本地跑，服务器只是转播台，不参与任何裁决。
+    var sc2=document.createElement('script'); sc2.src='/socket.io/socket.io.js';
+    sc2.onload=function(){
+      var sock=io(); var unread=0;
+      var myName=decodeURIComponent(params.get('name')||'')
+        || (localStorage.getItem('lsz_name')||'').trim() || '访客';
+      sock.on('connect', function(){
+        sock.emit('lobby:enter',{name:myName});
+        sock.emit('solo:begin',{name:myName, level:aiLevelParam}, function(res){
+          if(res&&res.ok) startBroadcast(sock);
+        });
+      });
+      window.addEventListener('beforeunload', function(){
+        try{ sock.emit('solo:end'); }catch(e){}
+      });
+      sock.on('lobby:chat', function(m){
+        var log=document.getElementById('solo-log'); if(!log) return;
+        var d=document.createElement('div');
+        d.innerHTML='<span class="who">'+esc(m.name)+'</span>：'+esc(m.text);
+        log.appendChild(d); log.scrollTop=log.scrollHeight;
+        while(log.children.length>60) log.removeChild(log.firstChild);
+        if(!box.classList.contains('open')){
+          unread++;
+          var u=document.getElementById('solo-unread');
+          if(u){ u.textContent=unread; u.style.display='inline-block'; }
+        }
+      });
+      function send(){
+        var i=document.getElementById('solo-msg'); var v=(i.value||'').trim();
+        if(v){ sock.emit('lobby:chat',{text:v,name:myName}); i.value=''; }
+      }
+      document.getElementById('solo-send').onclick=send;
+      document.getElementById('solo-msg').addEventListener('keydown',function(e){
+        if(e.key==='Enter') send();
+      });
+      document.getElementById('solo-chat-btn').onclick=function(){
+        box.classList.toggle('open');
+        if(box.classList.contains('open')){
+          unread=0;
+          var u=document.getElementById('solo-unread'); if(u) u.style.display='none';
+          var log=document.getElementById('solo-log'); if(log) log.scrollTop=log.scrollHeight;
+        }
+      };
+      document.getElementById('solo-chat-x').onclick=function(){ box.classList.remove('open'); };
+    };
+    document.head.appendChild(sc2);
+
+    // 顶栏占了 34px，让棋盘按新的可用高度重算
+    setTimeout(function(){
+      try{ if(typeof sizeCanvas==='function') sizeCanvas(true); if(typeof draw==='function') draw(); }catch(e){}
+    }, 120);
+    window.addEventListener('resize', function(){
+      try{ if(typeof sizeCanvas==='function') sizeCanvas(true); }catch(e){}
+    });
   }
 
   var sc=document.createElement('script'); sc.src='/socket.io/socket.io.js';
@@ -495,16 +789,12 @@
       // (桌面顶104/底40，手机顶44/底96)，我们的浮层叠加其上却完全不在预算内，
       // 顶+底一起超支就把棋盘挤出可视区域。
       'h1,#status{display:none!important}',
-      // 原生控件的隐藏改为按对局类型区分（body 上挂 net-vs-human / net-vs-ai 类）：
-      //   · 真人对弈：残局/测评/重开/切换棋力这些会破坏双方对局，必须禁用
-      //   · 与电脑对弈：本质就是单机，全部原生功能照常可用，不做任何限制
-      'body.net-vs-human #trig-level,body.net-vs-human #trig-redlevel,',
-      'body.net-vs-human #trig-blacklevel,body.net-vs-human #trig-mode,',
-      'body.net-vs-human #mtrig-level,body.net-vs-human #mtrig-mode,',
-      'body.net-vs-human #endgame-btn,body.net-vs-human #assess-btn,',
-      'body.net-vs-human #restart,body.net-vs-human #draw-btn,',
-      'body.net-vs-human #hint-btn,body.net-vs-human #undo,',
-      'body.net-vs-human #mm-btn{display:none!important}',
+      // 走到这里必定是"真人对局"（与电脑下棋已改为纯单机，根本不进联网层）。
+      // 真人对局的座位、回合、棋局都由服务器掌管，下列原生控件本地一改就会错位，
+      // 因此一律锁定；顶栏已提供走服务器的对应版本（悔棋/求和/棋力/重开）。
+      '#trig-mode,#mtrig-mode,#trig-level,#trig-redlevel,#trig-blacklevel,',
+      '#mtrig-level,#restart,#draw-btn,#undo,#mm-btn,',
+      '#endgame-btn,#assess-btn,#hint-btn{display:none!important}',
       // 只留一条紧凑顶栏，取消底栏——把腾出的空间都还给棋盘
       'body{padding-top:40px!important;padding-bottom:0!important}',
       '#net-top{position:fixed;top:0;left:0;right:0;height:40px;z-index:2147483647;',
@@ -782,6 +1072,26 @@
     })();
 
     markGameKind();     // 首次建界面时先定好对局类型，避免原生控件闪现/误禁
+
+    // 残局/测评是自成一体的单机玩法，进出时会本地 reset 棋盘。
+    // 退出回到联网对局时，本地局面已被清掉而服务器仍留着原局，
+    // 这里侦测"退出"的瞬间，向服务器要一次全量同步把棋局接回来。
+    (function watchSoloExit(){
+      var wasSolo = isLocalSoloMode();
+      setInterval(function(){
+        var nowSolo = isLocalSoloMode();
+        if(wasSolo && !nowSolo){
+          try{
+            socket.emit('sync:request');
+            setStatus('已退出单机玩法，正在接回原对局…');
+          }catch(e){}
+        }
+        if(wasSolo !== nowSolo){
+          wasSolo = nowSolo;
+          markGameKind();
+        }
+      }, 800);
+    })();
 
     // 引擎文件自检：缺失时明确提示，避免"强AI默默变内置AI"
     checkEngineFiles();

@@ -58,6 +58,7 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   .panel.people{max-height:none}
   .panel.people .plist{max-height:240px}
   .panel.ai{max-height:none}
+  .panel.solo{max-height:none}
   /* 按标签显示：棋桌 / 棋友二选一；闲聊固定在最下面，随页面自然滚动到 */
   body.tb-tables .col-right{display:none}
   body.tb-people .col-left{display:none}
@@ -82,7 +83,9 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}
 .panel.people{flex:0 1 auto;max-height:34%}
-.panel.ai{flex:0 0 auto;max-height:none}   /* 9级全部露出，不设上限、不裁切 */
+.panel.ai{flex:0 0 auto;max-height:none}
+.panel.solo{flex:0 1 auto;max-height:26%}
+.prow.watch .lv{font-size:.76rem;color:var(--faint);margin-right:6px}   /* 9级全部露出，不设上限、不裁切 */
 .panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
   font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px;flex-shrink:0}
 .panel-hd .cnt{color:var(--faint);font-size:.78rem;font-family:var(--song)}
@@ -238,6 +241,10 @@ button.go:disabled{opacity:.4;cursor:default}
     <div class="panel-hd">电脑棋手 <span class="cnt">随时应战</span></div>
     <div class="plist" id="ai-list"></div>
   </div>
+  <div class="panel solo">
+    <div class="panel-hd">人机对局 <span class="cnt">可观战切磋</span></div>
+    <div class="plist" id="solo-list"><div class="pempty">暂无人机对局</div></div>
+  </div>
 </aside>
 </div><!-- /main-top -->
 
@@ -298,6 +305,29 @@ socket.on('lobby:chat', function(m){ addLobbyChat(m); });
 
 // 在厅棋友名单
 socket.on('lobby:users', function(list){ renderUsers(list); });
+socket.on('lobby:solo',  function(list){ renderSolo(list); });
+
+// 正在进行的人机对局：谁都能进去观战，和朋友一起研究怎么赢电脑
+function renderSolo(list){
+  var box=$('solo-list'); if(!box) return;
+  if(!list || !list.length){ box.innerHTML='<div class="pempty">暂无人机对局</div>'; return; }
+  box.innerHTML='';
+  list.forEach(function(g){
+    var el=document.createElement('div');
+    el.className='prow watch clickable';
+    el.innerHTML='<span class="pn">'+esc(g.name)+' vs 电脑</span>'
+      +'<span class="lv">'+g.level+'级</span>'
+      +(g.watchers?'<span class="pst">观'+g.watchers+'</span>':'')
+      +'<button tabindex="-1">观战</button>';
+    function go(){
+      location.href='xiangqi/?watch='+encodeURIComponent(g.id)
+        +'&name='+encodeURIComponent(myName());
+    }
+    el.onclick=go;
+    el.querySelector('button').onclick=function(e){ e.stopPropagation(); go(); };
+    box.appendChild(el);
+  });
+}
 
 // 收到邀请
 var pendingInvite=null;
@@ -359,16 +389,11 @@ function renderAI(){
       +'<button tabindex="-1">对弈</button>';    // 视觉上仍是按钮样式，但点击由整行接管
     function go(){
       setAiPref(x.l);
-      var payload={level:x.l};
-      if(aiPickTarget){ payload.tableId=aiPickTarget; aiPickTarget=null; hideAiPickHint(); }
-      socket.emit('lobby:playAI',payload,function(res){
-        if(res&&res.ok){
-          // 用服务器回传的真实座位——若我先坐了黑，电脑会坐红，这里不能写死 red
-          location.href='xiangqi/?table='+encodeURIComponent(res.tableId)
-            +'&seat='+encodeURIComponent(res.seat||'red')
-            +'&name='+encodeURIComponent(myName());
-        } else alert((res&&res.err)||'暂时无法开始');
-      });
+      if(aiPickTarget){ aiPickTarget=null; hideAiPickHint(); }
+      // 与电脑下棋 = 纯单机，不占棋桌、不经服务器托管棋局。
+      // 这样棋盘里的选边/先走方/残局/测评等全部功能都能正常用，
+      // 不会再和服务器分配的座位、回合互相打架。
+      location.href='xiangqi/?aiLevel='+x.l+'&name='+encodeURIComponent(myName());
     }
     el.onclick=go;                     // 整行任意位置
     el.querySelector('button').onclick=function(e){ e.stopPropagation(); go(); };
@@ -514,7 +539,7 @@ function renderTables(list){
       else if(a==='ready') btn.onclick=toggleReady;
       else if(a==='start') btn.onclick=function(){ startTable(t.id); };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
-      else if(a==='playai') btn.onclick=function(){ goPickAI(t.id); };
+      else if(a==='playai') btn.onclick=function(){ goPickAI(); };
     });
     ['o-type','o-per','o-tot','o-han'].forEach(function(id){
       var s=el.querySelector('#'+id);
@@ -532,10 +557,11 @@ function updateStatus(list){
   $('rs-waiting').textContent=w+' 桌';
 }
 
-// 「和电脑下」→ 弹出提示，引导到「电脑棋手」栏选级；记下是为哪张桌选的
+// 「和电脑下」→ 弹出提示，引导到「电脑棋手」栏选棋力。
+// 与电脑下棋是纯单机，不占棋桌，所以这里不再记桌号。
 var aiPickTarget=null;
-function goPickAI(tableId){
-  aiPickTarget=tableId;
+function goPickAI(){
+  aiPickTarget=true;
   // 手机端：先切到"棋友"标签，提示条才能定位到可见的面板
   var tabs=document.getElementById('tabs');
   if(tabs && window.innerWidth<=720){
