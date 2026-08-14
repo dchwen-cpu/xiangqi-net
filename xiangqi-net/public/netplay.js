@@ -95,7 +95,8 @@
     document.head.appendChild(st);
 
     var bar=document.createElement('div'); bar.id='solo-bar';
-    bar.innerHTML='<b>观战中</b><span id="watch-info" style="opacity:.9">连接中…</span>'
+    bar.innerHTML='<b>观战中</b><span id="watch-info" style="opacity:.95">连接中…</span>'
+      +'<span id="solo-watchers" style="opacity:.85;font-size:11px"></span>'
       +'<div class="sp"></div>'
       +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
       +'<a href="../">← 返回大厅</a>';
@@ -134,10 +135,23 @@
         });
       });
       sock.on('solo:state', function(snap){ applyWatchSnapshot(snap); });
+      sock.on('solo:watchers', function(d){
+        var el=document.getElementById('solo-watchers');
+        if(!el) return;
+        if(d && d.count>0){
+          var names=(d.names||[]).slice(0,3).join('、');
+          if((d.names||[]).length>3) names += ' 等';
+          el.textContent = '　👁 '+d.count+' 人在看（'+names+'）';
+        } else el.textContent='';
+        // 顺带把对局双方补全（万一 ack 没拿到）
+        var wi=document.getElementById('watch-info');
+        if(wi && d && d.player) wi.textContent = d.player+' vs 电脑 '+d.level+'级';
+      });
       sock.on('solo:over', function(){
         var el=document.getElementById('watch-info');
         if(el) el.textContent='对局已结束';
       });
+      var everOpened=false;
       sock.on('lobby:chat', function(m){
         var log=document.getElementById('solo-log'); if(!log) return;
         var d=document.createElement('div');
@@ -145,9 +159,19 @@
         log.appendChild(d); log.scrollTop=log.scrollHeight;
         while(log.children.length>60) log.removeChild(log.firstChild);
         if(!box.classList.contains('open')){
+          // 第一条消息自动弹开聊天窗，免得完全不知道有人在说话；
+          // 之后只在按钮上累计未读，不再打扰
+          if(!everOpened){
+            everOpened=true;
+            box.classList.add('open');
+            log.scrollTop=log.scrollHeight;
+            return;
+          }
           unread++;
           var u=document.getElementById('solo-unread');
           if(u){ u.textContent=unread; u.style.display='inline-block'; }
+          var btn=document.getElementById('solo-chat-btn');
+          if(btn){ btn.style.background='rgba(255,255,255,.42)'; }
         }
       });
       function send(){
@@ -161,8 +185,10 @@
       document.getElementById('solo-chat-btn').onclick=function(){
         box.classList.toggle('open');
         if(box.classList.contains('open')){
-          unread=0;
+          unread=0; everOpened=true;
           var u=document.getElementById('solo-unread'); if(u) u.style.display='none';
+          var btn=document.getElementById('solo-chat-btn');
+          if(btn) btn.style.background='';
           var log=document.getElementById('solo-log'); if(log) log.scrollTop=log.scrollHeight;
         }
       };
@@ -205,12 +231,13 @@
   if(aiLevelParam && !tableId){
     function setupSoloMode(){
       // 设好初始棋力（进来后仍可在棋盘里自由改）
-      try{
-        aiLevel = aiLevelParam;
-        if(typeof redAiLevel!=='undefined') redAiLevel=aiLevelParam;
-        if(typeof refreshTriggerLabels==='function') refreshTriggerLabels();
-        if(typeof prepEngineForLevel==='function') prepEngineForLevel(aiLevelParam);
-      }catch(e){}
+      // aiLevel 在棋盘程序里是 let 顶层声明，有暂时性死区：
+      // 若本函数抢在那句声明执行之前跑，直接赋值会抛 ReferenceError。
+      // 因此逐句独立保护，任何一句失败都不影响其余步骤和顶栏创建。
+      try{ if(typeof aiLevel!=='undefined') aiLevel = aiLevelParam; }catch(e){}
+      try{ if(typeof redAiLevel!=='undefined') redAiLevel = aiLevelParam; }catch(e){}
+      try{ if(typeof refreshTriggerLabels==='function') refreshTriggerLabels(); }catch(e){}
+      try{ if(typeof prepEngineForLevel==='function') prepEngineForLevel(aiLevelParam); }catch(e){}
       buildSoloBar();
     }
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setupSoloMode);
@@ -289,9 +316,11 @@
     document.head.appendChild(st);
 
     var bar=document.createElement('div'); bar.id='solo-bar';
+    var soloName = decodeURIComponent(params.get('name')||'')
+      || (localStorage.getItem('lsz_name')||'').trim() || '我';
     bar.innerHTML='<b>象棋室</b>'
-      +'<span style="opacity:.85">与电脑对弈</span>'
-      +'<span id="solo-watchers" style="opacity:.8;font-size:11px"></span>'
+      +'<span id="solo-vs" style="opacity:.95">'+esc(soloName)+' vs 电脑 '+aiLevelParam+'级</span>'
+      +'<span id="solo-watchers" style="opacity:.85;font-size:11px"></span>'
       +'<div class="sp"></div>'
       +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
       +'<a href="../">← 返回大厅</a>';
@@ -317,9 +346,22 @@
           if(res&&res.ok) startBroadcast(sock);
         });
       });
+      // 观战情况：有人进来看棋时在顶栏显示出来
+      sock.on('solo:watchers', function(d){
+        var el=document.getElementById('solo-watchers');
+        if(!el) return;
+        if(d && d.count>0){
+          var names=(d.names||[]).slice(0,3).join('、');
+          if((d.names||[]).length>3) names += ' 等';
+          el.textContent = '　👁 '+d.count+' 人观战（'+names+'）';
+        } else {
+          el.textContent = '';
+        }
+      });
       window.addEventListener('beforeunload', function(){
         try{ sock.emit('solo:end'); }catch(e){}
       });
+      var everOpened=false;
       sock.on('lobby:chat', function(m){
         var log=document.getElementById('solo-log'); if(!log) return;
         var d=document.createElement('div');
@@ -327,9 +369,19 @@
         log.appendChild(d); log.scrollTop=log.scrollHeight;
         while(log.children.length>60) log.removeChild(log.firstChild);
         if(!box.classList.contains('open')){
+          // 第一条消息自动弹开聊天窗，免得完全不知道有人在说话；
+          // 之后只在按钮上累计未读，不再打扰
+          if(!everOpened){
+            everOpened=true;
+            box.classList.add('open');
+            log.scrollTop=log.scrollHeight;
+            return;
+          }
           unread++;
           var u=document.getElementById('solo-unread');
           if(u){ u.textContent=unread; u.style.display='inline-block'; }
+          var btn=document.getElementById('solo-chat-btn');
+          if(btn){ btn.style.background='rgba(255,255,255,.42)'; }
         }
       });
       function send(){
@@ -343,8 +395,10 @@
       document.getElementById('solo-chat-btn').onclick=function(){
         box.classList.toggle('open');
         if(box.classList.contains('open')){
-          unread=0;
+          unread=0; everOpened=true;
           var u=document.getElementById('solo-unread'); if(u) u.style.display='none';
+          var btn=document.getElementById('solo-chat-btn');
+          if(btn) btn.style.background='';
           var log=document.getElementById('solo-log'); if(log) log.scrollTop=log.scrollHeight;
         }
       };
