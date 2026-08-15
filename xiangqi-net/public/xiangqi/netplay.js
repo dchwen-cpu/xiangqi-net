@@ -26,8 +26,21 @@
 
   var seatWanted = decodeURIComponent(params.get('seat')   || 'auto');
   var myName     = decodeURIComponent(params.get('name')   || '访客');
-  var optPerMove = parseInt(params.get('perMove')) || 0;   // 每步时限（秒）
-  var optTotal   = parseInt(params.get('total'))   || 0;   // 全局时间（秒/方）
+  // 计时设置：初值取自 URL，之后跟随棋盘内「⚙ 设置」的改动。
+  // 早先写死为加载时的 URL 值，导致进棋盘后再改成计时对弈时这两个变量仍是 0，
+  // 计时器永远不显示——这正是"计时器没出来"的根因。
+  var optPerMove = parseInt(params.get('perMove')) || 0;
+  var optTotal   = parseInt(params.get('total'))   || 0;
+  function applyTimeOptions(o){
+    if(!o) return;
+    var timed = (o.type==='timed');
+    optPerMove = timed ? (parseInt(o.perMove)||0) : 0;
+    optTotal   = timed ? (parseInt(o.total)  ||0) : 0;
+    if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
+    else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
+    else { try{ stopTimer(); }catch(e){} }
+    try{ updateTimerDisplay(); }catch(e){}
+  }
   var optHandicap= decodeURIComponent(params.get('handicap') || '');  // 让子
 
   // 每标签独立 PID
@@ -641,6 +654,7 @@
     bindWatchResult(socket, function(){ socket.emit('sync:request'); });
     socket.on('table:options', function(d){
       applyOptsToPanel(d.options);
+      applyTimeOptions(d.options);          // 计时设置随之生效
       if(appliedCount===0 && !isSpectator){
         try{ if(typeof reset==='function') reset(); }catch(e){}
         try{
@@ -687,7 +701,7 @@
       endReported=false;
       appliedCount=0;                            // 新局从零手开始计数
       stopTimer();
-      if(d && d.options) curOptions=d.options;   // 让子随最新设置在重开局时一并生效
+      if(d && d.options){ curOptions=d.options; applyTimeOptions(d.options); }
       if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
       else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
       updateTimerDisplay();
@@ -894,6 +908,7 @@
       }
     }catch(e){}
     // 应用让子
+    if(st.options) applyTimeOptions(st.options);        // 进场/重连时同步计时设置
     if(st.options && st.options.handicap && st.moves && st.moves.length===0) applyHandicap(st.options.handicap);
     setPlayers(st.seats||{});
     refreshTurn();
@@ -974,11 +989,6 @@
       // 双方姓名：跟在按钮组后面，固定不滚动；轮到谁走就给谁加亮
       // 注意：这里不能用 margin-left:auto——flex 里的 auto margin 会吸收掉全部剩余空间，
       // 结果把前面的菜单按钮组一起挤到右边。改为普通间距，整条栏保持左对齐。
-      '#net-players{flex-shrink:0;min-width:0;max-width:150px;overflow:hidden;',
-        'text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin-left:6px}',
-      '#net-players .pn{opacity:.68;transition:opacity .15s}',
-      '#net-players .pn.on-turn{opacity:1;font-weight:bold;text-shadow:0 0 6px rgba(255,255,255,.5)}',
-      '#net-players .sep{opacity:.5;margin:0 3px}',
       '.net-timer{font-size:12px;opacity:.92;font-variant-numeric:tabular-nums;min-width:38px;',
         'text-align:right;flex-shrink:0}',
       // 状态提示：顶栏正下方的小型浮动提示条，只在有事要说时才出现，平时不占任何版面
@@ -1025,6 +1035,9 @@
       '#net-people-list .dot.b{background:#201d16}',
       '#net-people-list .dot.w{background:#cabd9f}',
       '#net-people-list .role{margin-left:auto;font-size:11px;color:#8a8069}',
+      '#net-people-list .pr.on{background:rgba(157,44,33,.10);border-radius:4px;',
+        'margin:0 -4px;padding:0 4px}',
+      '#net-people-list .pr.on .role{color:#9d2c21;font-weight:bold}',
       '#net-side-hd{flex-shrink:0;padding:7px 12px;border-bottom:1px solid #cabd9f;',
         'font-family:"Kaiti SC","楷体",serif;font-size:.92rem;color:#201d16;letter-spacing:.08em}',
       '#net-chat-log{flex:1;overflow-y:auto;padding:9px 12px;font-size:13px;line-height:1.75;color:#443c30;min-height:0}',
@@ -1058,7 +1071,6 @@
         '#net-req-bar{right:0}',
         '#net-top{gap:5px;padding:0 7px}',
         '#net-top b{font-size:.85rem}',
-        '#net-players{display:none}',   // 手机顶栏太窄，姓名让位；聊天记录里仍能看到双方是谁
         // 按钮组挪到棋盘下方后的样式：不再是顶栏里的横向滚动条，
         // 改为正常文档流的一块，铺满宽度、按钮自由换行，空间比顶栏宽裕得多
         '#net-top-btns.below-board{position:static;display:flex;flex-wrap:wrap;',
@@ -1090,11 +1102,6 @@
       : '';
     top.innerHTML='<b>象棋室</b>'
       +'<a href="../" id="net-exit">退出</a>'
-      +'<span id="net-players">'
-        +'<span class="pn" id="pn-red">红：—</span>'
-        +'<span class="sep">·</span>'
-        +'<span class="pn" id="pn-black">黑：—</span>'
-      +'</span>'
       +timerStr;
 
     // 菜单按钮组：独立元素，按屏幕宽度决定放哪——
@@ -1152,7 +1159,6 @@
 
 
     elStatus  =document.getElementById('net-status');
-    elPlayers =document.getElementById('net-players');
     elChatLog =document.getElementById('net-chat-log');
     elChatIn  =document.getElementById('net-msg');
     elTimerR  =document.getElementById('ntR');
@@ -1451,13 +1457,9 @@
   // ── 工具 ─────────────────────────────────────────────────────
   // 轮到谁走：不再用文字提示（那是与棋盘自身重复的信息），
   // 改为给顶栏里对应一方的姓名加亮（加粗、发光），棋局进行中始终如此、不占额外版面
+  // 轮到谁走：在右侧「对局信息」窗里给对应一方加亮（顶栏已不放姓名）
   function refreshTurn(){
-    try{
-      var t=(typeof turn!=='undefined')?turn:null;
-      var pr=document.getElementById('pn-red'), pb=document.getElementById('pn-black');
-      if(pr) pr.classList.toggle('on-turn', t==='r');
-      if(pb) pb.classList.toggle('on-turn', t==='b');
-    }catch(e){}
+    try{ renderNetPeople(); }catch(e){}
   }
   // 顶栏下方的小提示条：只用于真正的临时消息（悔棋/求和往来、断线、引擎加载中等），
   // 显示几秒后自动淡出，不再"回落显示轮到谁走"（那部分已经交给姓名高亮）
@@ -1471,10 +1473,7 @@
   var lastPlayers={};
   function setPlayers(p){
     lastPlayers=p||{};
-    var pr=document.getElementById('pn-red'), pb=document.getElementById('pn-black');
-    if(pr) pr.textContent='红：'+(p.red||'空');
-    if(pb) pb.textContent='黑：'+(p.black||'空');
-    renderNetPeople();
+    renderNetPeople();   // 顶栏已不显示姓名，只更新右侧「对局信息」窗
   }
   // 右侧"对局信息"窗里的参与者名单
   function renderNetPeople(){
@@ -1482,11 +1481,14 @@
     var cnt =document.getElementById('net-people-cnt');
     if(!list) return;
     var p=lastPlayers||{};
+    var t=(typeof turn!=='undefined')?turn:null;
     var html='';
-    html+='<div class="pr"><span class="dot r"></span><span>'+esc(p.red||'空位')+'</span>'
-        + '<span class="role">红方</span></div>';
-    html+='<div class="pr"><span class="dot b"></span><span>'+esc(p.black||'空位')+'</span>'
-        + '<span class="role">黑方</span></div>';
+    html+='<div class="pr'+(t==='r'?' on':'')+'"><span class="dot r"></span>'
+        + '<span>'+esc(p.red||'空位')+'</span>'
+        + '<span class="role">'+(t==='r'?'● 走棋中':'红方')+'</span></div>';
+    html+='<div class="pr'+(t==='b'?' on':'')+'"><span class="dot b"></span>'
+        + '<span>'+esc(p.black||'空位')+'</span>'
+        + '<span class="role">'+(t==='b'?'● 走棋中':'黑方')+'</span></div>';
     var n=p.spectators||0;
     if(n>0) html+='<div class="pr"><span class="dot w"></span><span>观战者 '+n+' 人</span>'
                 + '<span class="role">观棋</span></div>';
