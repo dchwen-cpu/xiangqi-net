@@ -728,13 +728,20 @@ io.on('connection', socket => {
     t.status='over'; io.to(t.id).emit('table:over',{reason:'双方议和，和棋',winner:null}); pushLobby();
   });
 
-  socket.on('timeout', ()=>{
+  // 超时判负：上报方即超时方，其对手获胜。reason 区分是每步超时还是总用时耗尽。
+  socket.on('timeout', (p)=>{
     const t=tables.get(socket.data.tableId);
-    if(!t) return;
+    if(!t || t.status==='over') return;
     const color=colorBySid(t,socket.id);
     if(!color) return;
     t.status='over';
-    io.to(t.id).emit('table:over',{reason:(color==='red'?'红方':'黑方')+'超时',winner:color==='red'?'black':'red'});
+    const who = (color==='red' ? '红方' : '黑方');
+    const win = (color==='red' ? '黑方' : '红方');
+    const why = (p && p.reason) ? String(p.reason).slice(0,12) : '超时';
+    io.to(t.id).emit('table:over', {
+      reason: who + why + '，判负，' + win + '胜',
+      winner: color==='red' ? 'black' : 'red'
+    });
     pushLobby();
   });
 
