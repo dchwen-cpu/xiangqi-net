@@ -22,7 +22,6 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   background:var(--line);border-radius:4px}
 .col-right{width:260px;flex:0 0 260px;min-height:0;
   display:flex;flex-direction:column;gap:10px}
-.panel.people,.panel.ai{flex:1;max-height:none}
 
 /* 闲聊：独立一段，铺满全宽，固定高度，紧贴棋桌下方 */
 #lobby-chat{flex:0 0 190px;width:100%;
@@ -82,10 +81,15 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
 }
 .panel{background:var(--p2);border:1px solid var(--line);border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;min-height:0;margin:0}
-.panel.people{flex:0 1 auto;max-height:34%}
-.panel.ai{flex:0 0 auto;max-height:none}
-.panel.solo{flex:0 1 auto;max-height:26%}
-.prow.watch .lv{font-size:.76rem;color:var(--faint);margin-right:6px}   /* 9级全部露出，不设上限、不裁切 */
+/* 三栏等分右侧高度，各自内部滚动。此前 people/ai 有两处互相冲突的规则，
+   后一条把名单压成 34%、AI 栏却不设上限，才出现"上窄下宽、名单被挡住"。 */
+.panel.people,.panel.ai,.panel.solo{flex:1 1 0;min-height:0;max-height:none}
+/* 电脑棋手 9 行：靠收紧字号与行高让它们在等分高度内全部露出，而不是撑大窗口 */
+.panel.ai .prow{padding:3px 11px;font-size:.82rem;line-height:1.25}
+.panel.ai .prow .pn{font-size:.82rem}
+.panel.ai .prow button{padding:1px 8px;font-size:.72rem}
+.panel.ai .ai-dot{width:6px;height:6px}
+.prow.watch .lv{font-size:.76rem;color:var(--faint);margin-right:6px}
 .panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
   font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px;flex-shrink:0}
 .panel-hd .cnt{color:var(--faint);font-size:.78rem;font-family:var(--song)}
@@ -440,7 +444,10 @@ function leave(){
   myTable=null; mySeat=null;
   renderTables(lastList);
 }
-function watch(id){ location.href='xiangqi/?table='+encodeURIComponent(id)+'&seat=spectate&name='+encodeURIComponent(myName()); }
+function watch(id){
+  // 观战需在座棋手同意，进去后会显示等待状态
+  location.href='xiangqi/?table='+encodeURIComponent(id)+'&seat=spectate&name='+encodeURIComponent(myName());
+}
 
 // 观战直接进棋盘；坐下留在大厅
 function sendOptions(){
@@ -497,7 +504,7 @@ function renderTables(list){
     var aiBtn = (anySeatFree && !t.aiSeat && tableOpen)
       ? ' <button class="sec mini" data-act="playai">和电脑下</button>' : '';
     var watchBtn = ' <button class="sec mini watch" data-act="watch">观战</button>';
-    var obs = t.spectators?('　<span class="seat-e">观 '+t.spectators+'</span>'):'';
+    var obs = t.spectators?('　<span class="seat-e">👁 '+t.spectators+' 人观战</span>'):'';
     // 双方就位：真人坐了、或那一侧由电脑占着，都算数——
     // 跟电脑下棋时电脑记在 t.aiSeat 而不是 t.red/t.black，
     // 之前只看 t.red&&t.black 会让「▶开始」永远点不亮。

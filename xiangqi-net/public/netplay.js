@@ -120,8 +120,7 @@
     document.head.appendChild(st);
 
     var bar=document.createElement('div'); bar.id='solo-bar';
-    bar.innerHTML='<b>观战中</b><span id="watch-info" style="opacity:.95">连接中…</span>'
-      +'<span id="solo-watchers" style="opacity:.85;font-size:11px"></span>'
+    bar.innerHTML='<b>观战中</b>'
       +'<div class="sp"></div>'
       +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
       +'<a href="../">← 返回大厅</a>';
@@ -187,16 +186,18 @@
         sock.emit('lobby:enter',{name:myName});
         sock.emit('solo:watch',{id:id}, function(res){
           var el=document.getElementById('watch-info');
-          if(res&&res.ok){ if(el) el.textContent=esc(res.name)+' vs 电脑 '+res.level+'级'; }
-          else { if(el) el.textContent=(res&&res.err)||'该对局已结束'; }
+          if(res && res.ok && res.pending){
+            if(el) el.textContent='已向 '+esc(res.name)+' 发出观战请求，等待同意…';
+          } else if(res && res.ok){
+            if(el) el.textContent=esc(res.name)+' vs 电脑 '+res.level+'级';
+          } else {
+            if(el) el.textContent=(res&&res.err)||'该对局已结束';
+          }
         });
+        bindWatchResult(sock);
       });
       sock.on('solo:state', function(snap){ applyWatchSnapshot(snap); });
       sock.on('solo:watchers', function(d){
-        var el=document.getElementById('solo-watchers');
-        if(el) el.textContent = (d&&d.count>0) ? ('　👁 '+d.count+' 人在看') : '';
-        var wi=document.getElementById('watch-info');
-        if(wi && d && d.player) wi.textContent = d.player+' vs 电脑 '+d.level+'级';
         if(window.__soloRenderPeople) window.__soloRenderPeople(d);
       });
       sock.on('solo:over', function(){
@@ -386,9 +387,9 @@
     document.head.appendChild(st);
 
     var bar=document.createElement('div'); bar.id='solo-bar';
+    // 顶栏只放操作项：对局双方与观战者已有右侧独立窗口，
+    // 之前塞在这里会随人数变长，把后面的按钮一路往右挤出屏幕。
     bar.innerHTML='<b>象棋室</b>'
-      +'<span id="solo-vs" style="opacity:.95">'+esc(soloName)+' vs 电脑 '+aiLevelParam+'级</span>'
-      +'<span id="solo-watchers" style="opacity:.85;font-size:11px"></span>'
       +'<div class="sp"></div>'
       +'<button id="solo-chat-btn">聊天<span id="solo-unread"></span></button>'
       +'<a href="../">← 返回大厅</a>';
@@ -446,11 +447,10 @@
           if(res&&res.ok) startBroadcast(sock);
         });
       });
+      bindWatchApproval(sock, false);      // 有人请求观战 → 弹窗征求同意
       // 观战情况：有人进来看棋时在顶栏显示出来
       sock.on('solo:watchers', function(d){
-        var el=document.getElementById('solo-watchers');
-        if(el) el.textContent = (d&&d.count>0) ? ('　👁 '+d.count+' 人观战') : '';
-        if(window.__soloRenderPeople) window.__soloRenderPeople(d);   // 刷新右侧名单
+        if(window.__soloRenderPeople) window.__soloRenderPeople(d);   // 只刷新右侧名单窗口
       });
       window.addEventListener('beforeunload', function(){
         try{ sock.emit('solo:end'); }catch(e){}
@@ -519,12 +519,19 @@
     return (m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
   }
   function updateTimerDisplay(){
-    if(elTimerR) elTimerR.textContent = (optTotal||optPerMove) ? fmtTime(timer.red.rem) : '';
-    if(elTimerB) elTimerB.textContent = (optTotal||optPerMove) ? fmtTime(timer.black.rem) : '';
-    if(elTimerR) elTimerR.style.fontWeight = timer.active==='red'   ? 'bold' : 'normal';
-    if(elTimerB) elTimerB.style.fontWeight = timer.active==='black' ? 'bold' : 'normal';
-    if(elTimerR) elTimerR.style.color = timer.red.rem<=10   ? '#9d2c21' : '#443c30';
-    if(elTimerB) elTimerB.style.color = timer.black.rem<=10 ? '#201d16' : '#443c30';
+    var timed = !!(optTotal||optPerMove);
+    var r=document.getElementById('ntR'), b=document.getElementById('ntB');
+    var cr=document.getElementById('clk-red'), cb=document.getElementById('clk-black');
+    var wrap=document.getElementById('net-clock');
+    // 自由对弈（不限时）时整块计时器不显示，免得占地方还误导
+    if(wrap) wrap.style.display = timed ? 'block' : 'none';
+    if(!timed) return;
+    if(r) r.textContent = fmtTime(timer.red.rem);
+    if(b) b.textContent = fmtTime(timer.black.rem);
+    if(cr){ cr.classList.toggle('on', timer.active==='red');
+            cr.classList.toggle('low', timer.red.rem<=20); }
+    if(cb){ cb.classList.toggle('on', timer.active==='black');
+            cb.classList.toggle('low', timer.black.rem<=20); }
   }
   function startTimer(side, socket){
     if(!optTotal && !optPerMove) return;
@@ -533,10 +540,18 @@
     timer.iv = setInterval(function(){
       timer[side].rem--;
       updateTimerDisplay();
+      // 读秒提醒：只在自己这方、且只提示一次
+      if(timer[side].rem===10 && !isSpectator && myColor &&
+         ((side==='red'&&myColor==='r')||(side==='black'&&myColor==='b'))){
+        setStatus('⏰ 只剩 10 秒');
+      }
       if(timer[side].rem<=0){
         clearInterval(timer.iv);
+        var who=(side==='red'?'红方':'黑方');
         if(!isSpectator) socket.emit('timeout');
-        setStatus((side==='red'?'红方':'黑方')+'超时负', true);
+        setStatus(who+'超时，判负', true);
+        addChat({name:'系统',seat:'',text:who+'用时耗尽，超时判负'});
+        showEndPanel(who+'超时判负');
       }
     },1000);
   }
@@ -622,6 +637,8 @@
       }
     });
     // 对局设置变化（含让子）：更新面板显示；若还没人走子，立刻让双方棋盘反映新设置
+    bindWatchApproval(socket, true);     // 真人对局：需双方同意
+    bindWatchResult(socket, function(){ socket.emit('sync:request'); });
     socket.on('table:options', function(d){
       applyOptsToPanel(d.options);
       if(appliedCount===0 && !isSpectator){
@@ -981,6 +998,33 @@
       '#net-side{position:fixed;top:40px;right:0;bottom:0;width:240px;z-index:2147483646;',
         'display:flex;flex-direction:column;background:#e4dabf;border-left:1px solid #cabd9f;',
         'font:13px "Songti SC","SimSun",serif}',
+      // 对局信息窗：计时器 + 参与者名单，与聊天上下平分右栏
+      '#net-info-card{flex:0 0 42%;display:flex;flex-direction:column;min-height:0;',
+        'border-bottom:2px solid #cabd9f}',
+      '#net-info-hd{flex-shrink:0;padding:7px 12px;border-bottom:1px solid #cabd9f;',
+        'font-family:"Kaiti SC","楷体",serif;font-size:.92rem;color:#201d16;',
+        'letter-spacing:.08em;display:flex;align-items:center}',
+      '#net-people-cnt{margin-left:auto;font:11px "Songti SC",serif;color:#8a8069}',
+      // 计时器：左上位置，两方各一行，轮到谁走谁高亮
+      '#net-clock{flex-shrink:0;padding:8px 12px;border-bottom:1px dashed #cabd9f}',
+      '#net-clock .clk{display:flex;align-items:center;gap:8px;padding:3px 0}',
+      '#net-clock .clk .nm{width:20px;text-align:center;border-radius:3px;',
+        'font-size:12px;padding:1px 0;background:#cabd9f;color:#443c30}',
+      '#clk-red .nm{background:#9d2c21;color:#f2e8d5}',
+      '#clk-black .nm{background:#201d16;color:#f2e8d5}',
+      '#net-clock .clk .tm{font:16px/1.2 "Menlo",monospace;font-variant-numeric:tabular-nums;',
+        'color:#443c30;letter-spacing:.04em}',
+      '#net-clock .clk.on{background:rgba(157,44,33,.10);border-radius:5px}',
+      '#net-clock .clk.on .tm{font-weight:bold}',
+      '#net-clock .clk.low .tm{color:#c0392b}',
+      '#net-people-list{flex:1;overflow-y:auto;padding:6px 12px;color:#443c30;',
+        'line-height:1.8;font-size:12.5px;min-height:0}',
+      '#net-people-list .pr{display:flex;align-items:center;gap:6px}',
+      '#net-people-list .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}',
+      '#net-people-list .dot.r{background:#9d2c21}',
+      '#net-people-list .dot.b{background:#201d16}',
+      '#net-people-list .dot.w{background:#cabd9f}',
+      '#net-people-list .role{margin-left:auto;font-size:11px;color:#8a8069}',
       '#net-side-hd{flex-shrink:0;padding:7px 12px;border-bottom:1px solid #cabd9f;',
         'font-family:"Kaiti SC","楷体",serif;font-size:.92rem;color:#201d16;letter-spacing:.08em}',
       '#net-chat-log{flex:1;overflow-y:auto;padding:9px 12px;font-size:13px;line-height:1.75;color:#443c30;min-height:0}',
@@ -1074,7 +1118,16 @@
     var statusEl=document.createElement('div'); statusEl.id='net-status';
 
     var side=document.createElement('div'); side.id='net-side';
-    side.innerHTML='<div id="net-side-hd">对局聊天　<span style="font-size:.75rem;color:#8a8069">（点此收起）</span></div>'
+    side.innerHTML=
+       '<div id="net-info-card">'
+        +'<div id="net-info-hd">对局信息<span id="net-people-cnt"></span></div>'
+        +'<div id="net-clock">'
+          +'<div class="clk" id="clk-red"><span class="nm">红</span><span class="tm" id="ntR">—</span></div>'
+          +'<div class="clk" id="clk-black"><span class="nm">黑</span><span class="tm" id="ntB">—</span></div>'
+        +'</div>'
+        +'<div id="net-people-list"></div>'
+      +'</div>'
+      +'<div id="net-side-hd">对局聊天　<span style="font-size:.75rem;color:#8a8069">（点此收起）</span></div>'
       +'<div id="net-chat-log"></div>'
       +'<div id="net-chat-in"><input id="net-msg" maxlength="200" placeholder="说点什么…" autocomplete="off"><button id="net-send">发</button></div>';
 
@@ -1320,6 +1373,30 @@
     document.getElementById('np-o-han').value=curOptions.handicap||'';
   }
 
+  // 观战审批：有人请求观战时弹给对局者
+  function bindWatchApproval(sock, isTable){
+    sock.on('watch:ask', function(d){
+      showConfirm((d && d.name ? d.name : '有人') + ' 请求观战本局，是否同意？',
+        function(){ sock.emit(isTable?'watch:replyTable':'watch:reply', {reqId:d.reqId, accept:true}); },
+        function(){ sock.emit(isTable?'watch:replyTable':'watch:reply', {reqId:d.reqId, accept:false}); }
+      );
+    });
+  }
+  // 观战方收到审批结果
+  function bindWatchResult(sock, onOk){
+    sock.on('watch:result', function(r){
+      var el=document.getElementById('watch-info') || document.getElementById('net-status');
+      if(r && r.ok){
+        if(el) el.textContent='已获同意，正在进入…';
+        if(typeof onOk==='function') onOk(r);
+      } else if(r && r.waiting){
+        if(el) el.textContent=r.err||'等待另一位棋手同意…';
+      } else {
+        showConfirm((r&&r.err)||'观战请求未获同意', function(){ location.href='../'; }, function(){ location.href='../'; });
+      }
+    });
+  }
+
   // 自定义确认框：替代浏览器原生 confirm()——原生弹窗会带出网址且是英文按钮，
   // 这里做成页面内浮层，只显示中文文字和「确认/取消」两个按钮
   function showConfirm(text, onYes){
@@ -1391,12 +1468,30 @@
     clearTimeout(setStatus._t);
     if(!persist) setStatus._t=setTimeout(function(){ elStatus.classList.remove('show'); },4000);
   }
+  var lastPlayers={};
   function setPlayers(p){
+    lastPlayers=p||{};
     var pr=document.getElementById('pn-red'), pb=document.getElementById('pn-black');
     if(pr) pr.textContent='红：'+(p.red||'空');
     if(pb) pb.textContent='黑：'+(p.black||'空');
-    // 观战人数附在黑方名字后，不再单独占一段
-    if(pb && p.spectators) pb.textContent += '　（观'+p.spectators+'）';
+    renderNetPeople();
+  }
+  // 右侧"对局信息"窗里的参与者名单
+  function renderNetPeople(){
+    var list=document.getElementById('net-people-list');
+    var cnt =document.getElementById('net-people-cnt');
+    if(!list) return;
+    var p=lastPlayers||{};
+    var html='';
+    html+='<div class="pr"><span class="dot r"></span><span>'+esc(p.red||'空位')+'</span>'
+        + '<span class="role">红方</span></div>';
+    html+='<div class="pr"><span class="dot b"></span><span>'+esc(p.black||'空位')+'</span>'
+        + '<span class="role">黑方</span></div>';
+    var n=p.spectators||0;
+    if(n>0) html+='<div class="pr"><span class="dot w"></span><span>观战者 '+n+' 人</span>'
+                + '<span class="role">观棋</span></div>';
+    list.innerHTML=html;
+    if(cnt) cnt.textContent=(2+n)+' 人';
   }
   function addChat(m){
     if(!elChatLog) return;
