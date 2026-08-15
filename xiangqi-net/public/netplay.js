@@ -36,9 +36,9 @@
     var timed = (o.type==='timed');
     optPerMove = timed ? (parseInt(o.perMove)||0) : 0;
     optTotal   = timed ? (parseInt(o.total)  ||0) : 0;
-    if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
-    else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
-    else { try{ stopTimer(); }catch(e){} }
+    timer.red.move   = optPerMove||0;  timer.black.move  = optPerMove||0;
+    timer.red.total  = optTotal||0;    timer.black.total = optTotal||0;
+    if(!optPerMove && !optTotal){ try{ stopTimer(); }catch(e){} }
     try{ updateTimerDisplay(); }catch(e){}
   }
   var optHandicap= decodeURIComponent(params.get('handicap') || '');  // 让子
@@ -519,12 +519,16 @@
   document.head.appendChild(sc);
 
   // ── 计时器状态 ────────────────────────────────────────────────
+  // 每方两个独立计时，各自倒数、各自可能超时：
+  //   move —— 每步时限：轮到你时从满值倒数，你落子后重置回满值
+  //   total —— 全局时间：本局累计用时，只减不回补
+  // 任一归零即判负。此前两者挤在同一个变量里（optTotal||optPerMove），
+  // 所以只能计其中一个，这正是"计时只有一行"的原因。
   var timer = {
-    red:  { rem: optTotal||optPerMove||0 },
-    black:{ rem: optTotal||optPerMove||0 },
+    red:  { move: optPerMove||0, total: optTotal||0 },
+    black:{ move: optPerMove||0, total: optTotal||0 },
     active: null, iv: null
   };
-  var elTimerR, elTimerB;
 
   function fmtTime(s){
     if(s<=0) return '00:00';
@@ -533,52 +537,75 @@
   }
   function updateTimerDisplay(){
     var timed = !!(optTotal||optPerMove);
-    var r=document.getElementById('ntR'), b=document.getElementById('ntB');
-    var cr=document.getElementById('clk-red'), cb=document.getElementById('clk-black');
     var wrap=document.getElementById('net-clock');
-    // 自由对弈（不限时）时整块计时器不显示，免得占地方还误导
     if(wrap) wrap.style.display = timed ? 'block' : 'none';
     if(!timed) return;
-    if(r) r.textContent = fmtTime(timer.red.rem);
-    if(b) b.textContent = fmtTime(timer.black.rem);
-    if(cr){ cr.classList.toggle('on', timer.active==='red');
-            cr.classList.toggle('low', timer.red.rem<=20); }
-    if(cb){ cb.classList.toggle('on', timer.active==='black');
-            cb.classList.toggle('low', timer.black.rem<=20); }
+
+    var head=wrap ? wrap.querySelector('.clk-head') : null;
+    if(head){
+      // 只开了其中一种时，另一列的表头也相应留空
+      var ls=head.querySelectorAll('.ch-l');
+      if(ls[0]) ls[0].textContent = optPerMove ? '每步' : '';
+      if(ls[1]) ls[1].textContent = optTotal   ? '总时' : '';
+    }
+    [['red','ntRm','ntRt','clk-red'],['black','ntBm','ntBt','clk-black']].forEach(function(x){
+      var t=timer[x[0]];
+      var em=document.getElementById(x[1]), et=document.getElementById(x[2]);
+      var row=document.getElementById(x[3]);
+      if(em){
+        em.textContent = optPerMove ? fmtTime(Math.max(0,t.move)) : '—';
+        em.classList.toggle('low', !!optPerMove && t.move<=10);
+      }
+      if(et){
+        et.textContent = optTotal ? fmtTime(Math.max(0,t.total)) : '—';
+        et.classList.toggle('low', !!optTotal && t.total<=30);
+      }
+      if(row) row.classList.toggle('on', timer.active===x[0]);
+    });
   }
+
   function startTimer(side, socket){
     if(!optTotal && !optPerMove) return;
     clearInterval(timer.iv);
     timer.active = side;
     timer.iv = setInterval(function(){
-      timer[side].rem--;
+      var t = timer[side];
+      if(optPerMove) t.move--;
+      if(optTotal)   t.total--;
       updateTimerDisplay();
-      // 读秒提醒：只在自己这方、且只提示一次
-      if(timer[side].rem===10 && !isSpectator && myColor &&
+
+      var who = (side==='red' ? '红方' : '黑方');
+      // 读秒提醒：只对自己这方、每种计时各提示一次
+      if(!isSpectator && myColor &&
          ((side==='red'&&myColor==='r')||(side==='black'&&myColor==='b'))){
-        setStatus('⏰ 只剩 10 秒');
+        if(optPerMove && t.move===10) setStatus('⏰ 本步只剩 10 秒');
+        else if(optTotal && t.total===30) setStatus('⏰ 总用时只剩 30 秒');
       }
-      if(timer[side].rem<=0){
+
+      // 任一计时归零即判负
+      var lost = (optPerMove && t.move<=0) ? '每步超时'
+               : (optTotal   && t.total<=0) ? '总用时耗尽' : null;
+      if(lost){
         clearInterval(timer.iv);
-        var who=(side==='red'?'红方':'黑方');
-        if(!isSpectator) socket.emit('timeout');
-        setStatus(who+'超时，判负', true);
-        addChat({name:'系统',seat:'',text:who+'用时耗尽，超时判负'});
-        showEndPanel(who+'超时判负');
+        timer.iv = null; timer.active = null;
+        if(!isSpectator) socket.emit('timeout', { reason: lost });
+        setStatus(who + lost + '，判负', true);
+        addChat({ name:'系统', seat:'', text: who + lost + '，判负' });
+        showEndPanel(who + lost + '，判负');
       }
-    },1000);
+    }, 1000);
   }
+
   function stopTimer(){
     clearInterval(timer.iv);
     timer.iv=null; timer.active=null;
   }
   function onMoveMade(side, socket){
-    // 切换计时到对方
-    if(optPerMove){
-      var opp=(side==='red')?'black':'red';
-      timer[opp].rem = optPerMove;
-    }
-    startTimer(side==='red'?'black':'red', socket);
+    // 走子方的"每步时限"用完即重置回满值（全局时间不回补）
+    if(optPerMove) timer[side].move = optPerMove;
+    var opp=(side==='red')?'black':'red';
+    if(optPerMove) timer[opp].move = optPerMove;   // 对方开始新的一步
+    startTimer(opp, socket);
   }
 
   // ── 让子：局面初始化后移除棋子 ───────────────────────────────
@@ -702,8 +729,8 @@
       appliedCount=0;                            // 新局从零手开始计数
       stopTimer();
       if(d && d.options){ curOptions=d.options; applyTimeOptions(d.options); }
-      if(optTotal){ timer.red.rem=optTotal; timer.black.rem=optTotal; }
-      else if(optPerMove){ timer.red.rem=optPerMove; timer.black.rem=optPerMove; }
+      timer.red.move  = optPerMove||0;  timer.black.move  = optPerMove||0;
+      timer.red.total = optTotal||0;    timer.black.total = optTotal||0;
       updateTimerDisplay();
       addChat({name:'系统',seat:'',text:'新一局开始，红黑互换'});
     });
@@ -1017,13 +1044,18 @@
       '#net-people-cnt{margin-left:auto;font:11px "Songti SC",serif;color:#8a8069}',
       // 计时器：左上位置，两方各一行，轮到谁走谁高亮
       '#net-clock{flex-shrink:0;padding:8px 12px;border-bottom:1px dashed #cabd9f}',
+      '#net-clock .clk-head{display:flex;align-items:center;gap:8px;padding:0 0 2px;',
+        'font-size:10.5px;color:#8a8069}',
+      '#net-clock .clk-head .ch-n{width:20px;flex:0 0 20px}',
+      '#net-clock .clk-head .ch-l{flex:1;text-align:center}',
       '#net-clock .clk{display:flex;align-items:center;gap:8px;padding:3px 0}',
-      '#net-clock .clk .nm{width:20px;text-align:center;border-radius:3px;',
+      '#net-clock .clk .nm{width:20px;flex:0 0 20px;text-align:center;border-radius:3px;',
         'font-size:12px;padding:1px 0;background:#cabd9f;color:#443c30}',
       '#clk-red .nm{background:#9d2c21;color:#f2e8d5}',
       '#clk-black .nm{background:#201d16;color:#f2e8d5}',
-      '#net-clock .clk .tm{font:16px/1.2 "Menlo",monospace;font-variant-numeric:tabular-nums;',
-        'color:#443c30;letter-spacing:.04em}',
+      '#net-clock .clk .tm{flex:1;text-align:center;font:15px/1.2 "Menlo",monospace;',
+        'font-variant-numeric:tabular-nums;color:#443c30;letter-spacing:.02em}',
+      '#net-clock .clk .tm.low{color:#c0392b;font-weight:bold}',
       '#net-clock .clk.on{background:rgba(157,44,33,.10);border-radius:5px}',
       '#net-clock .clk.on .tm{font-weight:bold}',
       '#net-clock .clk.low .tm{color:#c0392b}',
@@ -1129,8 +1161,12 @@
        '<div id="net-info-card">'
         +'<div id="net-info-hd">对局信息<span id="net-people-cnt"></span></div>'
         +'<div id="net-clock">'
-          +'<div class="clk" id="clk-red"><span class="nm">红</span><span class="tm" id="ntR">—</span></div>'
-          +'<div class="clk" id="clk-black"><span class="nm">黑</span><span class="tm" id="ntB">—</span></div>'
+          +'<div class="clk-head"><span class="ch-n"></span>'
+            +'<span class="ch-l">每步</span><span class="ch-l">总时</span></div>'
+          +'<div class="clk" id="clk-red"><span class="nm">红</span>'
+            +'<span class="tm" id="ntRm">—</span><span class="tm" id="ntRt">—</span></div>'
+          +'<div class="clk" id="clk-black"><span class="nm">黑</span>'
+            +'<span class="tm" id="ntBm">—</span><span class="tm" id="ntBt">—</span></div>'
         +'</div>'
         +'<div id="net-people-list"></div>'
       +'</div>'
@@ -1161,8 +1197,6 @@
     elStatus  =document.getElementById('net-status');
     elChatLog =document.getElementById('net-chat-log');
     elChatIn  =document.getElementById('net-msg');
-    elTimerR  =document.getElementById('ntR');
-    elTimerB  =document.getElementById('ntB');
 
     // 悔棋
     document.getElementById('nb-undo').onclick=function(){
@@ -1294,11 +1328,8 @@
     checkEngineFiles();
 
     // 初始化计时器显示
-    if(optTotal){
-      timer.red.rem=optTotal; timer.black.rem=optTotal;
-    } else if(optPerMove){
-      timer.red.rem=optPerMove; timer.black.rem=optPerMove;
-    }
+    timer.red.move  = optPerMove||0;  timer.black.move  = optPerMove||0;
+    timer.red.total = optTotal||0;    timer.black.total = optTotal||0;
     updateTimerDisplay();
   }
 
