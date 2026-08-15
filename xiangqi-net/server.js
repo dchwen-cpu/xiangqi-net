@@ -82,6 +82,8 @@ const users      = new Map();   // pid -> {pid,name,sid,status}
 // 因为只有一个真相来源（对局者本地），不存在与服务器状态错位的可能。
 const soloGames  = new Map();   // id -> {id,name,level,sid,state,watchers,ts}
 let   soloSeq    = 1;
+const watchReqs  = new Map();   // reqId -> {soloId,sid,name,ts} 人机对局的观战请求
+const tableWatchReqs = new Map();  // reqId -> {tableId,sid,name,votes,ts} 真人对局的观战请求
 const invites    = new Map();   // inviteId -> {tableId,fromPid,toPid,ts}
 let seq = 1;
 const newId = () => 't'+(seq++).toString(36)+Date.now().toString(36).slice(-3);
@@ -408,7 +410,26 @@ io.on('connection', socket => {
 
     if     (seat==='red')   t.seats.red   ={pid,name,sid:socket.id};
     else if(seat==='black') t.seats.black ={pid,name,sid:socket.id};
-    else                   { seat='spectate'; t.spectators.add(socket.id); }
+    else {
+      // 观战真人对局需双方在座棋手同意；桌上还没坐满时无人可问，直接放行
+      seat='spectate';
+      const needAsk = !!(t.seats.red && t.seats.black);
+      if(needAsk){
+        const reqId='t'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+        tableWatchReqs.set(reqId,{ tableId:t.id, sid:socket.id, name, votes:{}, ts:Date.now() });
+        setTimeout(()=>{
+          if(tableWatchReqs.has(reqId)){
+            tableWatchReqs.delete(reqId);
+            io.to(socket.id).emit('watch:result',{ok:false,err:'棋手未回应，请稍后再试'});
+          }
+        }, 60000);
+        io.to(t.seats.red.sid).emit('watch:ask',{ reqId, name, table:true });
+        io.to(t.seats.black.sid).emit('watch:ask',{ reqId, name, table:true });
+        if(typeof ack==='function') ack({ok:true, pending:true, seat:'spectate'});
+        return;                       // 等批准，先不入座
+      }
+      t.spectators.add(socket.id);
+    }
 
     socket.data.tableId=t.id; socket.data.seat=seat; socket.data.pid=pid; socket.data.name=name;
     socket.join(t.id);
@@ -554,15 +575,72 @@ io.on('connection', socket => {
     socket.to('solo:'+g.id).emit('solo:state', p);
   });
 
+  // 观战人机对局：要先征得对局者同意。电脑一方无需征询（默认同意），
+  // 所以只要执棋的那位点了「同意」即可入场。
   socket.on('solo:watch', (p, ack)=>{
     const g = soloGames.get(p && p.id);
     if(!g){ if(typeof ack==='function') ack({ok:false,err:'该对局已结束'}); return; }
-    socket.data.watchId = g.id;
-    socket.join('solo:'+g.id);
-    pushSoloWatchers(g.id);
-    pushLobby();
-    if(typeof ack==='function') ack({ok:true, name:g.name, level:g.level});
-    if(g.state) socket.emit('solo:state', g.state);       // 进来先补一份当前局面
+    const reqId = 'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    const who   = socket.data.name || '访客';
+    watchReqs.set(reqId, { soloId:g.id, sid:socket.id, name:who, ts:Date.now() });
+    setTimeout(()=>{                                  // 60 秒无回应自动作废
+      if(watchReqs.has(reqId)){
+        watchReqs.delete(reqId);
+        io.to(socket.id).emit('watch:result', { ok:false, err:'对方未回应，请稍后再试' });
+      }
+    }, 60000);
+    io.to(g.sid).emit('watch:ask', { reqId, name:who });
+    if(typeof ack==='function') ack({ok:true, pending:true, name:g.name, level:g.level});
+  });
+
+  // 真人对局的观战答复：红黑两位都同意才放行，任一方拒绝即作罢
+  socket.on('watch:replyTable', (p)=>{
+    const req = tableWatchReqs.get(p && p.reqId);
+    if(!req) return;
+    const t = tables.get(req.tableId);
+    const viewer = io.sockets.sockets.get(req.sid);
+    if(!t || !viewer){ tableWatchReqs.delete(p.reqId); return; }
+    const color = colorBySid(t, socket.id);
+    if(!color) return;                              // 只有在座棋手能表态
+    if(!p.accept){
+      tableWatchReqs.delete(p.reqId);
+      viewer.emit('watch:result',{ok:false,err:'棋手谢绝了观战请求'});
+      return;
+    }
+    req.votes[color] = true;
+    if(req.votes.red && req.votes.black){           // 双方都同意
+      tableWatchReqs.delete(p.reqId);
+      t.spectators.add(viewer.id);
+      viewer.data.tableId = t.id;
+      viewer.data.seat = 'spectate';
+      viewer.join(t.id);
+      sendState(viewer, t, 'spectate');
+      broadcastRoom(t); pushLobby();
+      viewer.emit('watch:result',{ok:true});
+    } else {
+      viewer.emit('watch:result',{ok:false, waiting:true, err:'已获一方同意，等待另一位…'});
+    }
+  });
+
+  // 对局者的答复
+  socket.on('watch:reply', (p)=>{
+    const req = watchReqs.get(p && p.reqId);
+    if(!req) return;
+    watchReqs.delete(p.reqId);
+    const g = soloGames.get(req.soloId);
+    const viewer = io.sockets.sockets.get(req.sid);
+    if(!g || !viewer){ return; }
+    if(g.sid !== socket.id) return;                   // 只有对局者本人能批准
+    if(p.accept){
+      viewer.data.watchId = g.id;
+      viewer.join('solo:'+g.id);
+      pushSoloWatchers(g.id);
+      pushLobby();
+      viewer.emit('watch:result', { ok:true, name:g.name, level:g.level });
+      if(g.state) viewer.emit('solo:state', g.state);
+    } else {
+      viewer.emit('watch:result', { ok:false, err:'对方谢绝了观战请求' });
+    }
   });
 
   socket.on('solo:unwatch', ()=>{
