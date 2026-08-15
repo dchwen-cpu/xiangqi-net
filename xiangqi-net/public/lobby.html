@@ -56,7 +56,6 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   #tables{flex:none;max-height:58vh;overflow-y:auto}   /* 表格列表自己有个上限、自己滚，不抢页面 */
   .panel.people{max-height:none}
   .panel.people .plist{max-height:240px}
-  .panel.ai{max-height:none}
   .panel.solo{max-height:none}
   /* 按标签显示：棋桌 / 棋友二选一；闲聊固定在最下面，随页面自然滚动到 */
   body.tb-tables .col-right{display:none}
@@ -83,12 +82,7 @@ body{background:var(--paper);color:var(--i2);font-family:var(--song);
   display:flex;flex-direction:column;min-height:0;margin:0}
 /* 三栏等分右侧高度，各自内部滚动。此前 people/ai 有两处互相冲突的规则，
    后一条把名单压成 34%、AI 栏却不设上限，才出现"上窄下宽、名单被挡住"。 */
-.panel.people,.panel.ai,.panel.solo{flex:1 1 0;min-height:0;max-height:none}
-/* 电脑棋手 9 行：靠收紧字号与行高让它们在等分高度内全部露出，而不是撑大窗口 */
-.panel.ai .prow{padding:3px 11px;font-size:.82rem;line-height:1.25}
-.panel.ai .prow .pn{font-size:.82rem}
-.panel.ai .prow button{padding:1px 8px;font-size:.72rem}
-.panel.ai .ai-dot{width:6px;height:6px}
+.panel.people,.panel.solo{flex:1 1 0;min-height:0;max-height:none}
 .prow.watch .lv{font-size:.76rem;color:var(--faint);margin-right:6px}
 .panel-hd{padding:8px 13px;border-bottom:1px solid var(--line);font-family:var(--kai);
   font-size:.95rem;color:var(--ink);letter-spacing:.08em;display:flex;align-items:center;gap:6px;flex-shrink:0}
@@ -241,10 +235,6 @@ button.go:disabled{opacity:.4;cursor:default}
     <div class="panel-hd">在厅棋友 <span class="cnt" id="uc">0</span></div>
     <div class="plist" id="user-list"><div class="pempty">正在载入…</div></div>
   </div>
-  <div class="panel ai">
-    <div class="panel-hd">电脑棋手 <span class="cnt">随时应战</span></div>
-    <div class="plist" id="ai-list"></div>
-  </div>
   <div class="panel solo">
     <div class="panel-hd">人机对局 <span class="cnt">可观战切磋</span></div>
     <div class="plist" id="solo-list"><div class="pempty">暂无人机对局</div></div>
@@ -380,31 +370,6 @@ function renderUsers(list){
 }
 
 // 渲染常驻 AI（各等级）
-function renderAI(){
-  var box=$('ai-list');
-  var lv=[{l:1,n:'新手'},{l:3,n:'业余'},{l:4,n:'棋手'},{l:5,n:'高手'},
-          {l:6,n:'棋协大师'},{l:7,n:'大师'},{l:8,n:'特级大师'},{l:9,n:'引擎巅峰'}];
-  box.innerHTML='';
-  lv.forEach(function(x){
-    var el=document.createElement('div');
-    el.className='prow ai clickable';           // 整行可点，不必精确点在按钮上
-    el.innerHTML='<span class="ai-dot"></span>'
-      +'<span class="pn">AI · '+x.l+'级 '+x.n+'</span>'
-      +'<button tabindex="-1">对弈</button>';    // 视觉上仍是按钮样式，但点击由整行接管
-    function go(){
-      setAiPref(x.l);
-      if(aiPickTarget){ aiPickTarget=null; hideAiPickHint(); }
-      // 与电脑下棋 = 纯单机，不占棋桌、不经服务器托管棋局。
-      // 这样棋盘里的选边/先走方/残局/测评等全部功能都能正常用，
-      // 不会再和服务器分配的座位、回合互相打架。
-      location.href='xiangqi/?aiLevel='+x.l+'&name='+encodeURIComponent(myName());
-    }
-    el.onclick=go;                     // 整行任意位置
-    el.querySelector('button').onclick=function(e){ e.stopPropagation(); go(); };
-    box.appendChild(el);
-  });
-}
-renderAI();
 // 对局设置变更 → 立即重绘（不必等下一次 lobby:list）
 socket.on('table:options', function(){ socket.emit('lobby:enter',{name:myName(),playerId:myPID}); });
 
@@ -546,7 +511,10 @@ function renderTables(list){
       else if(a==='ready') btn.onclick=toggleReady;
       else if(a==='start') btn.onclick=function(){ startTable(t.id); };
       else if(a==='dismissai') btn.onclick=function(){ socket.emit('table:dismissAI'); };
-      else if(a==='playai') btn.onclick=function(){ goPickAI(); };
+      else if(a==='playai') btn.onclick=function(){
+        // 直接进单机棋盘，棋力在棋盘内的「电脑棋力」下拉里选
+        location.href='xiangqi/?aiLevel='+aiPref()+'&name='+encodeURIComponent(myName());
+      };
     });
     ['o-type','o-per','o-tot','o-han'].forEach(function(id){
       var s=el.querySelector('#'+id);
@@ -562,66 +530,6 @@ function updateStatus(list){
   $('rs-tables').textContent=list.length+' 张';
   $('rs-playing').textContent=p+' 桌';
   $('rs-waiting').textContent=w+' 桌';
-}
-
-// 「和电脑下」→ 弹出提示，引导到「电脑棋手」栏选棋力。
-// 与电脑下棋是纯单机，不占棋桌，所以这里不再记桌号。
-var aiPickTarget=null;
-function goPickAI(){
-  aiPickTarget=true;
-  // 手机端：先切到"棋友"标签，提示条才能定位到可见的面板
-  var tabs=document.getElementById('tabs');
-  if(tabs && window.innerWidth<=720){
-    var btn=tabs.querySelector('[data-tb="people"]');
-    if(btn) btn.click();
-  }
-  showAiPickHint();
-  var panel=document.querySelector('.panel.ai');
-  if(panel) panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-
-// 明确的提示：紧贴「电脑棋手」面板本身弹出，而不是飘在页面顶部
-var aiHintTimer=null;
-function showAiPickHint(){
-  hideAiPickHint();
-  var panel=document.querySelector('.panel.ai');
-  if(!panel) return;
-  var box=document.createElement('div');
-  box.id='ai-pick-hint';
-  box.style.cssText='position:absolute;left:50%;transform:translateX(-50%);'
-    +'z-index:9999;background:var(--seal);color:#fff;padding:8px 16px;border-radius:8px;'
-    +'font-family:var(--kai);font-size:.88rem;letter-spacing:.04em;white-space:nowrap;'
-    +'box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px;'
-    +'animation:aiHintIn .2s ease';
-  box.innerHTML='请选择电脑棋力水平 ↓'
-    +'<span style="cursor:pointer;opacity:.8;font-family:var(--song);font-size:.8rem;'
-    +'border:1px solid rgba(255,255,255,.5);border-radius:4px;padding:1px 7px" id="ai-hint-close">取消</span>';
-  // 小箭头指向面板
-  var arrow=document.createElement('div');
-  arrow.style.cssText='position:absolute;left:50%;transform:translateX(-50%);'
-    +'bottom:-6px;width:0;height:0;border-left:7px solid transparent;'
-    +'border-right:7px solid transparent;border-top:7px solid var(--seal)';
-  box.appendChild(arrow);
-
-  // 面板需要相对定位，才能让提示条用 absolute 贴在它上方
-  panel.style.position='relative';
-  box.style.bottom='calc(100% + 8px)';
-  box.style.top='auto';
-  panel.style.overflow='visible';
-  panel.insertBefore(box, panel.firstChild);
-
-  document.getElementById('ai-hint-close').onclick=function(e){
-    e.stopPropagation();
-    aiPickTarget=null;
-    hideAiPickHint();
-  };
-  clearTimeout(aiHintTimer);
-  aiHintTimer=setTimeout(hideAiPickHint,6000);
-}
-function hideAiPickHint(){
-  clearTimeout(aiHintTimer);
-  var box=document.getElementById('ai-pick-hint');
-  if(box) box.remove();
 }
 
 // ── 大厅聊天 ──
