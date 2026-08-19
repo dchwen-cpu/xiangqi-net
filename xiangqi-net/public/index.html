@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>立山斋棋牌室</title>
+<meta name="description" content="立山斋棋牌室 — 中国象棋、围棋、麻将、扑克、跳棋在线对弈。注册可参与积分与棋力值评定，或以访客身份直接进入。">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
+<style>
+  :root{
+    /* 宣纸 · 墨 · 朱砂 · 青瓷 · 陈灰 */
+    --paper:#efe7d3;
+    --paper-lit:#f6f0e0;
+    --paper-panel:#f8f3e6;
+    --ink:#262019;
+    --ink-soft:#5c5344;
+    --ink-faint:#8b8069;
+    --seal:#b23a2c;      /* 朱砂 */
+    --seal-deep:#933024;
+    --celadon:#4a7c68;   /* 可玩 */
+    --dust:#b8ab8a;      /* 边线/即将上线 */
+    --dust-lit:#d8cca8;
+    --shadow:rgba(45,36,22,.14);
+
+    --wenkai:"LXGW WenKai Screen","LXGW WenKai",STKaiti,KaiTi,"Kaiti SC",serif;
+    --data:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--wenkai);
+    color:var(--ink);
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 20% 15%,rgba(255,255,255,.35),transparent 45%),
+      radial-gradient(circle at 85% 80%,rgba(120,95,50,.06),transparent 40%);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .num{font-family:var(--data);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  button{font-family:inherit;cursor:pointer}
+  a{color:inherit;text-decoration:none}
+
+  /* ---------- 顶栏 ---------- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px clamp(16px,5vw,48px);
+    border-bottom:1px solid rgba(45,36,22,.12);
+  }
+  .brand{display:flex;align-items:center;gap:12px}
+  .seal-mark{
+    width:44px;height:44px;flex:none;border-radius:6px;
+    background:var(--seal);color:var(--paper-lit);
+    display:grid;place-items:center;line-height:1.05;text-align:center;
+    font-size:14px;padding:5px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.25);
+    transform:rotate(-1.5deg);
+  }
+  .brand h1{font-size:20px;margin:0;font-weight:600;letter-spacing:.06em}
+  .brand small{display:block;color:var(--ink-faint);font-size:11px;letter-spacing:.28em;margin-top:1px}
+
+  /* 身份区 */
+  #identity{display:flex;align-items:center;gap:10px}
+  .btn{
+    border:1px solid var(--ink);background:transparent;color:var(--ink);
+    padding:7px 16px;border-radius:3px;font-size:14px;transition:.15s;
+  }
+  .btn:hover{background:var(--ink);color:var(--paper-lit)}
+  .btn.seal{border-color:var(--seal);color:var(--seal)}
+  .btn.seal:hover{background:var(--seal);color:var(--paper-lit)}
+  .btn.ghost{border-color:var(--dust);color:var(--ink-soft)}
+  .btn.ghost:hover{background:var(--dust);color:var(--ink)}
+
+  .user-chip{
+    display:flex;align-items:center;gap:14px;
+    background:var(--paper-panel);border:1px solid var(--dust);
+    border-radius:4px;padding:6px 8px 6px 14px;
+  }
+  .user-chip .who{display:flex;flex-direction:column;line-height:1.15}
+  .user-chip .who b{font-size:14px}
+  .user-chip .who span{font-size:11px;color:var(--ink-faint)}
+  .stats{display:flex;gap:14px}
+  .stat{text-align:center;min-width:52px}
+  .stat .k{display:block;font-size:10px;color:var(--ink-faint);letter-spacing:.1em}
+  .stat .v{display:block;font-size:16px;color:var(--seal-deep)}
+  .stat.rating .v{color:var(--celadon)}
+  .signout{border:none;background:none;color:var(--ink-faint);font-size:12px;padding:4px 6px}
+  .signout:hover{color:var(--seal)}
+
+  /* ---------- 匾额 / hero ---------- */
+  .hall{
+    text-align:center;padding:clamp(40px,8vw,84px) 20px clamp(24px,4vw,40px);
+    animation:settle .7s ease both;
+  }
+  @keyframes settle{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .hall .plaque{
+    display:inline-block;font-size:clamp(38px,7vw,64px);font-weight:600;
+    letter-spacing:.14em;padding:0 .1em;position:relative;
+  }
+  .hall .plaque::after{
+    content:"";position:absolute;left:12%;right:12%;bottom:-10px;height:2px;
+    background:linear-gradient(90deg,transparent,var(--seal),transparent);
+  }
+  .hall p{color:var(--ink-soft);font-size:clamp(14px,2vw,17px);margin:22px auto 0;max-width:34em}
+
+  .entry-hint{
+    margin:26px auto 0;max-width:40em;font-size:13.5px;color:var(--ink-faint);
+    display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;
+  }
+  .entry-hint .dot{width:5px;height:5px;border-radius:50%;background:var(--dust);flex:none}
+
+  /* CTA 只在未登录时出现 */
+  #cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+  #cta-row .btn{padding:11px 26px;font-size:15px}
+
+  /* ---------- 游戏区 ---------- */
+  main{max-width:1000px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,5vw,32px) 60px}
+  .group{margin-bottom:44px}
+  .group-label{
+    display:flex;align-items:center;gap:14px;margin-bottom:20px;
+    color:var(--ink-soft);font-size:15px;letter-spacing:.24em;
+  }
+  .group-label::after{content:"";flex:1;height:1px;background:rgba(45,36,22,.12)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+  .card{
+    position:relative;background:var(--paper-panel);
+    border:1px solid var(--dust);border-radius:6px;
+    padding:22px 20px 20px;display:flex;gap:16px;align-items:flex-start;
+    transition:transform .18s ease,box-shadow .18s ease,border-color .18s;
+    text-align:left;color:inherit;width:100%;
+  }
+  .card.live{cursor:pointer}
+  .card.live:hover{transform:translateY(-4px);box-shadow:0 10px 22px var(--shadow);border-color:var(--celadon)}
+  .card.live:focus-visible{outline:2px solid var(--celadon);outline-offset:3px}
+  .card.soon{opacity:.72;cursor:default}
+  .card .stamp{
+    width:52px;height:52px;flex:none;border-radius:5px;
+    display:grid;place-items:center;font-size:26px;
+    background:var(--seal);color:var(--paper-lit);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);
+    transition:background .18s;
+  }
+  .card.soon .stamp{background:var(--dust);color:var(--paper-panel)}
+  .card.live:hover .stamp{background:var(--seal-deep)}
+  .card.open{opacity:1;border-style:dashed;background:transparent}
+  .card.open .stamp{background:transparent;color:var(--seal);border:1.5px dashed var(--seal);box-shadow:none}
+  .card .body{flex:1;min-width:0}
+  .card .name{font-size:19px;font-weight:600;margin:2px 0 4px}
+  .card .desc{font-size:12.5px;color:var(--ink-faint);line-height:1.5}
+  .card .foot{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12px}
+  .seats{color:var(--ink-soft);font-family:var(--data);font-size:11px}
+  .badge{padding:2px 9px;border-radius:20px;font-size:11px;letter-spacing:.05em}
+  .badge.live{background:rgba(74,124,104,.15);color:var(--celadon)}
+  .badge.soon{background:rgba(184,171,138,.25);color:var(--ink-faint)}
+  .badge.open{background:transparent;color:var(--seal);border:1px solid var(--dust-lit);padding:1px 8px}
+
+  /* ---------- 页脚 ---------- */
+  footer{
+    border-top:1px solid rgba(45,36,22,.12);
+    padding:26px 20px;text-align:center;color:var(--ink-faint);font-size:12.5px;
+  }
+  footer .seal-text{color:var(--seal);letter-spacing:.1em}
+  footer a{border-bottom:1px dotted var(--dust)}
+  footer a:hover{color:var(--ink);border-color:var(--ink-soft)}
+
+  /* ---------- 弹窗 ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(38,32,25,.5);
+    display:none;place-items:center;padding:20px;z-index:50;
+  }
+  .scrim.open{display:grid;animation:fade .2s}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modal{
+    background:var(--paper-lit);border:1px solid var(--dust);border-radius:8px;
+    width:100%;max-width:360px;padding:30px 28px 26px;
+    box-shadow:0 20px 50px rgba(30,22,10,.35);animation:pop .22s ease both;
+  }
+  @keyframes pop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+  .modal h2{margin:0 0 4px;font-size:22px;letter-spacing:.05em}
+  .modal .sub{margin:0 0 22px;font-size:12.5px;color:var(--ink-faint)}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.05em}
+  .field input{
+    width:100%;padding:10px 12px;font-family:inherit;font-size:15px;
+    border:1px solid var(--dust);border-radius:4px;background:var(--paper-panel);color:var(--ink);
+  }
+  .field input:focus{outline:none;border-color:var(--celadon);box-shadow:0 0 0 2px rgba(74,124,104,.18)}
+  .modal .primary{width:100%;padding:12px;font-size:15px;margin-top:6px;
+    background:var(--seal);color:var(--paper-lit);border:none;border-radius:4px;transition:.15s}
+  .modal .primary:hover{background:var(--seal-deep)}
+  .modal .primary:disabled{opacity:.6;cursor:default}
+  .modal .swap{text-align:center;margin-top:16px;font-size:13px;color:var(--ink-soft)}
+  .modal .swap b{color:var(--seal);cursor:pointer}
+  .modal .close{position:absolute;top:14px;right:16px;font-size:20px;color:var(--ink-faint);background:none;border:none}
+  .modal-wrap{position:relative}
+  .msg{font-size:12.5px;min-height:18px;margin:2px 0 6px;color:var(--seal-deep)}
+  .msg.ok{color:var(--celadon)}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--paper-lit);padding:11px 22px;border-radius:30px;
+    font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:80;
+    box-shadow:0 8px 24px rgba(0,0,0,.3);
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:12px}
+    .stat{min-width:44px}
+    .grid{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/">
+    <div class="seal-mark">立山<br>斋制</div>
+    <div>
+      <h1>立山斋棋牌室</h1>
+      <small>LISHANZHAI · 弈</small>
+    </div>
+  </a>
+  <div id="identity"><!-- 由 JS 渲染：登录/注册 或 访客 或 已登录 --></div>
+</header>
+
+<section class="hall">
+  <span class="plaque">对局有道</span>
+  <p>象棋、围棋、麻将、扑克、跳棋——落子之间，四海棋友同席。</p>
+  <div class="entry-hint">
+    <span>注册可参与积分与棋力值评定</span>
+    <span class="dot"></span>
+    <span>访客即刻入座，不计积分与棋力</span>
+  </div>
+  <div id="cta-row"></div>
+</section>
+
+<main id="games"><!-- 由 JS 渲染 --></main>
+
+<footer>
+  <div><span class="seal-text">立山斋制作</span> · <span class="num" id="year"></span></div>
+  <div style="margin-top:8px">
+    <a href="/privacy.html">隐私政策</a> · <a href="/terms.html">用户条款</a>
+  </div>
+</footer>
+
+<!-- 弹窗：注册 / 登录 共用 -->
+<div class="scrim" id="scrim">
+  <div class="modal modal-wrap" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="close" id="mClose" aria-label="关闭">×</button>
+    <h2 id="mTitle">登录</h2>
+    <p class="sub" id="mSub">回到你的棋盘</p>
+    <div class="field">
+      <label for="fUser">用户名</label>
+      <input id="fUser" autocomplete="username" maxlength="20">
+    </div>
+    <div class="field">
+      <label for="fPass">密码</label>
+      <input id="fPass" type="password" autocomplete="current-password" maxlength="64">
+    </div>
+    <div class="field" id="fConfirmWrap" hidden>
+      <label for="fConfirm">确认密码</label>
+      <input id="fConfirm" type="password" autocomplete="new-password" maxlength="64">
+    </div>
+    <div class="msg" id="mMsg"></div>
+    <button class="primary" id="mSubmit">登录</button>
+    <div class="swap" id="mSwap"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   立山斋棋牌室 · 入口页
+   —— 平台层门厅：身份（注册/登录/访客）+ 游戏分发
+   需要改的都在下面 CONFIG 里，一处改完全站生效。
+   ============================================================ */
+
+const CONFIG = {
+  // 后端认证接口前缀。指向你的 Node/Socket.IO 服务（Render）。
+  // 例如 'https://xiangqi-net.onrender.com/api'。留空则注册/登录会提示"需要后端"。
+  API_BASE: '',
+
+  // 新注册用户的初始积分；棋力值 (Glicko-2) 需完成定级局后才有数字。
+  SIGNUP_BONUS: 1000,
+
+  // 游戏清单：status 'live' 可玩 / 'soon' 即将上线。
+  // 加新游戏 = 在这里加一行；平台代码不用动。
+  GAMES: [
+    { id:'xiangqi', name:'中国象棋', glyph:'象', cat:'棋类', seats:'2 人',
+      status:'live', desc:'红先黑后，将帅不相见。人机、真人、观战俱全。',
+      url:'https://www.chinesechessonline.com' },
+
+    { id:'go', name:'围棋', glyph:'圍', cat:'棋类', seats:'2 人',
+      status:'soon', desc:'黑白交争，气尽乃亡。19 路正式对局。', url:'' },
+
+    { id:'checkers', name:'跳棋', glyph:'跳', cat:'棋类', seats:'2–6 人',
+      status:'soon', desc:'六角星盘，越子而行，先归者胜。', url:'' },
+
+    { id:'mahjong', name:'麻将', glyph:'麻', cat:'牌类', seats:'4 人',
+      status:'soon', desc:'东南西北，服务器发牌，一局定输赢。', url:'' },
+
+    { id:'poker', name:'扑克', glyph:'牌', cat:'牌类', seats:'2–9 人',
+      status:'soon', desc:'底牌暗持，各凭手气与算路。', url:'' },
+
+    // 通用入口：不一定是游戏。日后可改成任意内容（新游戏 / 工具 / 论坛 / 商店…）。
+    // 启用：把 status 改成 'live' 并填 url；换内容：改 name / glyph / desc / cat 即可。
+    { id:'more', name:'其它', glyph:'其', cat:'其它', seats:'—',
+      status:'soon', open:true, desc:'虚位以待 · 未必是游戏，日后再定。', url:'' },
+  ],
+};
+
+/* ---------- 安全存储：localStorage 优先，沙盒/隐私模式退回内存 ---------- */
+const store = (() => {
+  const mem = {};
+  let ok = true;
+  try { const k='__t'; localStorage.setItem(k,'1'); localStorage.removeItem(k); }
+  catch(e){ ok = false; }
+  return {
+    get:  k => { try{ return ok ? localStorage.getItem(k) : (mem[k]??null); }catch(e){ return mem[k]??null; } },
+    set:(k,v)=>{ try{ ok ? localStorage.setItem(k,v) : (mem[k]=v); }catch(e){ mem[k]=v; } },
+    del:  k => { try{ ok ? localStorage.removeItem(k) : (delete mem[k]); }catch(e){ delete mem[k]; } },
+  };
+})();
+const SESSION_KEY = 'lsz.session';
+
+/* ---------- 会话状态 ---------- */
+// session = null                                        未选择身份
+//         | { kind:'guest', name, id }                  访客（无积分/棋力）
+//         | { kind:'user', name, token, points, rating } 注册用户
+let session = loadSession();
+
+function loadSession(){
+  try{ const raw = store.get(SESSION_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function saveSession(s){ session = s; s ? store.set(SESSION_KEY, JSON.stringify(s)) : store.del(SESSION_KEY); renderIdentity(); }
+
+/* ---------- 渲染：顶栏身份区 + hero CTA ---------- */
+function renderIdentity(){
+  const el = document.getElementById('identity');
+  const cta = document.getElementById('cta-row');
+
+  if(!session){
+    el.innerHTML = `
+      <button class="btn seal" onclick="openAuth('register')">注册</button>
+      <button class="btn" onclick="openAuth('login')">登录</button>`;
+    cta.innerHTML = `
+      <button class="btn seal" onclick="openAuth('register')">注册账号</button>
+      <button class="btn ghost" onclick="enterAsGuest()">以访客进入</button>`;
+    return;
+  }
+
+  cta.innerHTML = ''; // 已选身份后隐藏 hero 的按钮
+
+  if(session.kind === 'guest'){
+    el.innerHTML = `
+      <div class="user-chip">
+        <div class="who"><b>${esc(session.name)}</b><span>访客 · 不计积分与棋力</span></div>
+        <button class="btn seal" style="padding:6px 12px" onclick="openAuth('register')">注册保存战绩</button>
+        <button class="signout" onclick="signOut()" title="退出">退出</button>
+      </div>`;
+    return;
+  }
+
+  // 注册用户
+  const rating = (session.rating == null) ? '未定级' : session.rating;
+  el.innerHTML = `
+    <div class="user-chip">
+      <div class="who"><b>${esc(session.name)}</b><span>注册用户</span></div>
+      <div class="stats">
+        <div class="stat"><span class="k">积分</span><span class="v num">${session.points ?? 0}</span></div>
+        <div class="stat rating"><span class="k">棋力值</span><span class="v ${session.rating==null?'':'num'}">${rating}</span></div>
+      </div>
+      <button class="signout" onclick="signOut()" title="退出登录">退出</button>
+    </div>`;
+}
+
+/* ---------- 渲染：游戏网格（按 棋类 / 牌类 分组） ---------- */
+function renderGames(){
+  const root = document.getElementById('games');
+  const cats = [...new Set(CONFIG.GAMES.map(g=>g.cat))];
+  root.innerHTML = cats.map(cat=>{
+    const cards = CONFIG.GAMES.filter(g=>g.cat===cat).map(cardHTML).join('');
+    return `<section class="group">
+      <div class="group-label">${cat}</div>
+      <div class="grid">${cards}</div>
+    </section>`;
+  }).join('');
+}
+function cardHTML(g){
+  const live = g.status==='live';
+  const cls  = 'card ' + g.status + (g.open ? ' open' : '');
+  const badgeCls  = g.open ? 'open' : g.status;
+  const badgeText = g.open ? '虚位以待' : (live ? '可玩' : '即将上线');
+  return `
+    <${live?'button':'div'} class="${cls}" ${live?`onclick="launch('${g.id}')"`:''} ${live?'':'aria-disabled="true"'}>
+      <div class="stamp">${g.glyph}</div>
+      <div class="body">
+        <div class="name">${esc(g.name)}</div>
+        <div class="desc">${esc(g.desc)}</div>
+        <div class="foot">
+          <span class="badge ${badgeCls}">${badgeText}</span>
+          <span class="seats">${esc(g.seats)}</span>
+        </div>
+      </div>
+    </${live?'button':'div'}>`;
+}
+
+/* ---------- 进入游戏 ---------- */
+function launch(id){
+  const g = CONFIG.GAMES.find(x=>x.id===id);
+  if(!g || g.status!=='live') { toast('该游戏即将上线'); return; }
+  if(!g.url){ toast('该游戏尚未配置入口'); return; }
+  if(!session){ enterAsGuest(); }   // 没选身份就点游戏 → 默认访客入座
+  let url = g.url;
+  // 跨域会话：注册用户带上 token，落地页可校验后免登录。访客不带。
+  if(session && session.kind==='user' && session.token){
+    url += (url.includes('?')?'&':'?') + 'sid=' + encodeURIComponent(session.token);
+  }
+  window.location.href = url;
+}
+
+/* ---------- 访客进入 ---------- */
+function enterAsGuest(){
+  const s = { kind:'guest', id:'g'+Math.random().toString(36).slice(2,8),
+              name:'游客'+String(Math.floor(1000+Math.random()*9000)) };
+  saveSession(s);
+  toast('已以访客身份进入 · '+s.name);
+}
+
+/* ---------- 退出 ---------- */
+function signOut(){ saveSession(null); toast('已退出'); }
+
+/* ---------- 注册 / 登录弹窗 ---------- */
+let authMode = 'login';
+function openAuth(mode){
+  authMode = mode;
+  const reg = mode==='register';
+  document.getElementById('mTitle').textContent = reg?'注册':'登录';
+  document.getElementById('mSub').textContent   = reg?'新立门户，积分与棋力从此计':'回到你的棋盘';
+  document.getElementById('fConfirmWrap').hidden = !reg;
+  document.getElementById('mSubmit').textContent = reg?'注册':'登录';
+  document.getElementById('fPass').autocomplete  = reg?'new-password':'current-password';
+  document.getElementById('mSwap').innerHTML = reg
+    ? `已有账号？<b onclick="openAuth('login')">去登录</b>`
+    : `还没有账号？<b onclick="openAuth('register')">去注册</b>`;
+  setMsg('');
+  ['fUser','fPass','fConfirm'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('scrim').classList.add('open');
+  document.getElementById('fUser').focus();
+}
+function closeAuth(){ document.getElementById('scrim').classList.remove('open'); }
+function setMsg(t, ok=false){ const m=document.getElementById('mMsg'); m.textContent=t; m.className='msg'+(ok?' ok':''); }
+
+async function submitAuth(){
+  const user = document.getElementById('fUser').value.trim();
+  const pass = document.getElementById('fPass').value;
+  const reg  = authMode==='register';
+
+  if(user.length < 2){ setMsg('用户名至少 2 个字符'); return; }
+  if(pass.length < 6){ setMsg('密码至少 6 位'); return; }
+  if(reg && pass !== document.getElementById('fConfirm').value){ setMsg('两次密码不一致'); return; }
+
+  if(!CONFIG.API_BASE){
+    setMsg('注册/登录需要后端服务，请先在 CONFIG.API_BASE 配置接口地址');
+    return;
+  }
+
+  const btn = document.getElementById('mSubmit');
+  btn.disabled = true; setMsg(reg?'注册中…':'登录中…', true);
+  try{
+    const res = await fetch(`${CONFIG.API_BASE}/auth/${reg?'register':'login'}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username:user, password:pass }),
+    });
+    const data = await res.json();
+    if(!res.ok){ setMsg(data.error || '操作失败，请重试'); btn.disabled=false; return; }
+    // 期望后端返回：{ token, username, points, rating }（rating 可为 null=未定级）
+    saveSession({ kind:'user', name:data.username, token:data.token,
+                  points: data.points ?? CONFIG.SIGNUP_BONUS, rating: data.rating ?? null });
+    closeAuth();
+    toast(reg?'注册成功，欢迎入斋':'欢迎回来');
+  }catch(e){
+    setMsg('无法连接服务器，请稍后再试');
+  }finally{ btn.disabled=false; }
+}
+
+/* ---------- 小工具 ---------- */
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+let toastTimer;
+function toast(t){
+  const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+/* ---------- 绑定 ---------- */
+document.getElementById('mSubmit').addEventListener('click', submitAuth);
+document.getElementById('mClose').addEventListener('click', closeAuth);
+document.getElementById('scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeAuth(); });
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeAuth();
+  if(e.key==='Enter' && document.getElementById('scrim').classList.contains('open')) submitAuth();
+});
+document.getElementById('year').textContent = new Date().getFullYear();
+
+/* ---------- 启动 ---------- */
+renderIdentity();
+renderGames();
+</script>
+</body>
+</html>
