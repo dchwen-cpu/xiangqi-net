@@ -284,8 +284,9 @@
    ============================================================ */
 
 const CONFIG = {
-  // 后端认证接口前缀。指向你的 Node/Socket.IO 服务（Render）。
-  // 例如 'https://xiangqi-net.onrender.com/api'。留空则注册/登录会提示"需要后端"。
+  // 认证接口前缀。门厅与后端同源时（同一台 Node 服务上一起部署，推荐）留空即可，
+  // 注册/登录会走相对路径 /auth/*。若后端在别的域名，填完整地址，
+  // 例如 'https://xiangqi-net.onrender.com'，并在后端 CORS 放行本站。
   API_BASE: '',
 
   // 新注册用户的初始积分；棋力值 (Glicko-2) 需完成定级局后才有数字。
@@ -296,7 +297,7 @@ const CONFIG = {
   GAMES: [
     { id:'xiangqi', name:'中国象棋', glyph:'象', cat:'棋类', seats:'2 人',
       status:'live', desc:'红先黑后，将帅不相见。人机、真人、观战俱全。',
-      url:'https://www.chinesechessonline.com' },
+      url:'/lobby.html' },
 
     { id:'go', name:'围棋', glyph:'圍', cat:'棋类', seats:'2 人',
       status:'soon', desc:'黑白交争，气尽乃亡。19 路正式对局。', url:'' },
@@ -468,11 +469,6 @@ async function submitAuth(){
   if(user.length < 2){ setMsg('用户名至少 2 个字符'); return; }
   if(pass.length < 6){ setMsg('密码至少 6 位'); return; }
   if(reg && pass !== document.getElementById('fConfirm').value){ setMsg('两次密码不一致'); return; }
-
-  if(!CONFIG.API_BASE){
-    setMsg('注册/登录需要后端服务，请先在 CONFIG.API_BASE 配置接口地址');
-    return;
-  }
 
   const btn = document.getElementById('mSubmit');
   btn.disabled = true; setMsg(reg?'注册中…':'登录中…', true);
