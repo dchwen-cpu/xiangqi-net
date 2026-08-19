@@ -7,10 +7,13 @@ const { Server } = require('socket.io');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors:{ origin:'*' } });
-// WASM 多线程需要这两个响应头（同源资源不受影响）
+// WASM 多线程需要这两个响应头（同源资源不受影响）。只发给象棋棋盘 /xiangqi，
+// 门厅等其它页面不发，避免 COEP:require-corp 挡住 CDN 字体等跨源资源。
 app.use((req,res,next)=>{
-  res.setHeader('Cross-Origin-Opener-Policy','same-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy','require-corp');
+  if (req.path.startsWith('/xiangqi')) {
+    res.setHeader('Cross-Origin-Opener-Policy','same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy','require-corp');
+  }
   next();
 });
 
@@ -34,7 +37,8 @@ app.use(express.static(path.join(__dirname,'public'), {
     }
   }
 }));
-app.get('/', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
+// 大厅移到 /lobby；根路径 / 交给门厅 public/index.html（express.static 默认发 index.html）
+app.get('/lobby', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
 
 // 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
 app.get('/engine-check', (_,res)=>{
@@ -70,7 +74,7 @@ app.get('/engine-check', (_,res)=>{
         + files.map(f=>{ let sz=''; try{ sz=' — '+(fs.statSync(path.join(dir,f)).size/1024).toFixed(0)+' KB'; }catch(e){} return f+sz; }).join('\n')
         + '</pre>';
   }
-  html+='<p><a href="/">← 返回棋室</a></p></body>';
+  html+='<p><a href="/lobby">← 返回棋室</a></p></body>';
   res.type('html').send(html);
 });
 
@@ -728,20 +732,13 @@ io.on('connection', socket => {
     t.status='over'; io.to(t.id).emit('table:over',{reason:'双方议和，和棋',winner:null}); pushLobby();
   });
 
-  // 超时判负：上报方即超时方，其对手获胜。reason 区分是每步超时还是总用时耗尽。
-  socket.on('timeout', (p)=>{
+  socket.on('timeout', ()=>{
     const t=tables.get(socket.data.tableId);
-    if(!t || t.status==='over') return;
+    if(!t) return;
     const color=colorBySid(t,socket.id);
     if(!color) return;
     t.status='over';
-    const who = (color==='red' ? '红方' : '黑方');
-    const win = (color==='red' ? '黑方' : '红方');
-    const why = (p && p.reason) ? String(p.reason).slice(0,12) : '超时';
-    io.to(t.id).emit('table:over', {
-      reason: who + why + '，判负，' + win + '胜',
-      winner: color==='red' ? 'black' : 'red'
-    });
+    io.to(t.id).emit('table:over',{reason:(color==='red'?'红方':'黑方')+'超时',winner:color==='red'?'black':'red'});
     pushLobby();
   });
 
