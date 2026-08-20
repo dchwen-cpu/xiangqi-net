@@ -245,6 +245,9 @@
 
 <footer>
   <div><span class="seal-text">立山斋制作</span> · <span class="num" id="year"></span></div>
+  <div id="visit-counter" style="display:none;margin-top:8px;color:var(--ink-faint)">
+    累计访问 <span class="num" id="visit-count">—</span> 次
+  </div>
   <div style="margin-top:8px">
     <a href="/privacy.html">隐私政策</a> · <a href="/terms.html">用户条款</a>
   </div>
@@ -507,9 +510,31 @@ document.addEventListener('keydown', e=>{
 });
 document.getElementById('year').textContent = new Date().getFullYear();
 
+/* ---------- 访问计数 ---------- */
+function visitorId(){
+  let id = store.get('lsz.visitor');
+  if(!id){ id = 'v' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); store.set('lsz.visitor', id); }
+  return id;
+}
+async function pingVisit(){
+  try{
+    const res = await fetch(`${CONFIG.API_BASE}/api/visits`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ visitorId: visitorId() })
+    });
+    if(!res.ok) return;
+    const d = await res.json();
+    if(typeof d.total === 'number'){
+      document.getElementById('visit-count').textContent = d.total.toLocaleString();
+      document.getElementById('visit-counter').style.display = '';   // 有数据才显示
+    }
+  }catch(e){ /* 后端没通就静默不显示 */ }
+}
+
 /* ---------- 启动 ---------- */
 renderIdentity();
 renderGames();
+pingVisit();
 </script>
 </body>
 </html>
