@@ -12,6 +12,7 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'lishanzhai.
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });   // 确保目录存在
 
 const db = new Database(DB_PATH);
+console.log('[db] SQLite 数据库路径:', DB_PATH, '（这个路径必须在持久盘的挂载路径下，否则重新部署会清空）');
 db.pragma('journal_mode = WAL');    // 并发读写更稳
 db.pragma('foreign_keys = ON');
 
