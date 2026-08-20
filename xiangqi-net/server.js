@@ -3,10 +3,12 @@ const express = require('express');
 const http    = require('http');
 const path    = require('path');
 const { Server } = require('socket.io');
+const { router: authRouter } = require('./auth');   // 认证路由（注册/登录/JWT）
 
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors:{ origin:'*' } });
+app.use(express.json());   // 解析 /auth 等 POST 请求的 JSON body
 // WASM 多线程需要这两个响应头（同源资源不受影响）。只发给象棋棋盘 /xiangqi，
 // 门厅等其它页面不发，避免 COEP:require-corp 挡住 CDN 字体等跨源资源。
 app.use((req,res,next)=>{
@@ -39,6 +41,8 @@ app.use(express.static(path.join(__dirname,'public'), {
 }));
 // 大厅移到 /lobby；根路径 / 交给门厅 public/index.html（express.static 默认发 index.html）
 app.get('/lobby', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
+
+app.use('/auth', authRouter);   // /auth/register  /auth/login  /auth/me（同源，无需 CORS）
 
 // 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
 app.get('/engine-check', (_,res)=>{
