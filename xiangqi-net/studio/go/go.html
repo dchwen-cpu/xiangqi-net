@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>围棋 · Go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16130E;
+    --ink-soft:#211C15;
+    --wood-hi:#EAC079;
+    --wood-lo:#D29A52;
+    --line:#2C2012;
+    --cinnabar:#C2402E;
+    --cinnabar-soft:#d96a55;
+    --text:#EDE6D8;
+    --muted:#A99B82;
+    --border:#3A3024;
+    --black-stone:#0c0c0e;
+    --white-stone:#F3EEE2;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+    --serif:'Noto Serif SC',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #211b12 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 110%, #1c1810 0%, transparent 55%),
+      var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px; gap:32px; flex-wrap:wrap;
+    -webkit-font-smoothing:antialiased;
+  }
+  .board-wrap{position:relative; flex:0 0 auto}
+  canvas{display:block; border-radius:8px;
+    box-shadow:0 24px 60px rgba(0,0,0,.55), 0 2px 0 rgba(255,255,255,.06) inset;
+    touch-action:none; cursor:pointer}
+
+  .panel{
+    width:300px; max-width:92vw;
+    background:linear-gradient(180deg, rgba(40,33,23,.9), rgba(28,23,16,.92));
+    border:1px solid var(--border); border-radius:14px;
+    padding:22px 20px; backdrop-filter:blur(6px);
+    box-shadow:0 18px 50px rgba(0,0,0,.4);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-bottom:18px}
+  .brand h1{font-family:var(--serif); font-weight:700; font-size:30px; letter-spacing:2px; line-height:1}
+  .brand span{font-family:var(--serif); color:var(--muted); font-size:13px; letter-spacing:3px; text-transform:uppercase}
+
+  .turn{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px; border-radius:10px;
+    background:rgba(0,0,0,.22); border:1px solid var(--border);
+    margin-bottom:14px;
+  }
+  .turn .dot{width:22px;height:22px;border-radius:50%;flex:0 0 auto;
+    box-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .turn .dot.black{background:radial-gradient(circle at 34% 30%, #59595e, #0a0a0c 70%)}
+  .turn .dot.white{background:radial-gradient(circle at 34% 30%, #ffffff, #cfc8b6 75%)}
+  .turn .who{font-size:15px; font-weight:600}
+  .turn .who small{display:block;color:var(--muted);font-weight:400;font-size:12px;margin-top:1px}
+  .turn.active{border-color:var(--cinnabar)}
+  .turn.active .who{color:var(--cinnabar-soft)}
+
+  .caps{display:flex; gap:10px; margin-bottom:16px}
+  .caps .cap{flex:1; background:rgba(0,0,0,.18); border:1px solid var(--border);
+    border-radius:9px; padding:9px 10px; text-align:center}
+  .caps .cap b{display:block; font-size:20px; font-variant-numeric:tabular-nums}
+  .caps .cap em{font-style:normal; color:var(--muted); font-size:11px; letter-spacing:.5px}
+
+  .row{display:flex; gap:8px; margin-bottom:8px}
+  button{
+    flex:1; font-family:var(--sans); font-size:13.5px; font-weight:600;
+    color:var(--text); background:rgba(255,255,255,.04);
+    border:1px solid var(--border); border-radius:9px; padding:10px 8px;
+    cursor:pointer; transition:.14s; letter-spacing:.3px;
+  }
+  button:hover{background:rgba(255,255,255,.09); border-color:#4d4030}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--cinnabar); border-color:var(--cinnabar); color:#fff}
+  button.primary:hover{background:#d24a37}
+  button:disabled{opacity:.4; cursor:default; transform:none}
+
+  .divider{height:1px;background:var(--border);margin:16px 0}
+
+  .field{margin-bottom:12px}
+  .field>label{display:block; font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--muted); margin-bottom:6px}
+  .seg{display:flex; background:rgba(0,0,0,.22); border:1px solid var(--border);
+    border-radius:9px; padding:3px; gap:3px}
+  .seg button{padding:7px 4px; font-size:12.5px; border:none; background:transparent; border-radius:6px}
+  .seg button.on{background:var(--cinnabar); color:#fff}
+  .seg button:hover:not(.on){background:rgba(255,255,255,.07)}
+
+  .status{min-height:20px; font-size:13px; color:var(--muted); margin-top:6px; line-height:1.5}
+  .status.win{color:var(--cinnabar-soft); font-weight:600; font-size:14.5px}
+
+  .score-box{display:none; margin-top:12px; padding:12px;
+    background:rgba(0,0,0,.25); border:1px solid var(--cinnabar); border-radius:10px}
+  .score-box.show{display:block}
+  .score-box .hint{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+  .score-line{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0}
+  .score-line b{font-variant-numeric:tabular-nums}
+  .score-result{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);
+    font-weight:700;font-size:15px;color:var(--cinnabar-soft);text-align:center}
+
+  .foot{margin-top:16px;font-size:11px;color:#6e6354;line-height:1.6}
+
+  @media (max-width:680px){ body{padding:14px;gap:18px} .panel{width:100%} }
+</style>
+</head>
+<body>
+
+<div class="board-wrap">
+  <canvas id="board"></canvas>
+</div>
+
+<div class="panel">
+  <div class="brand"><h1>围棋</h1><span>Go</span></div>
+
+  <div class="turn" id="turnBox">
+    <div class="dot black" id="turnDot"></div>
+    <div class="who" id="turnWho">黑先 · Black to move<small id="turnSub">点击交叉点落子</small></div>
+  </div>
+
+  <div class="caps">
+    <div class="cap"><b id="capB">0</b><em>黑提子 BLACK CAPS</em></div>
+    <div class="cap"><b id="capW">0</b><em>白提子 WHITE CAPS</em></div>
+  </div>
+
+  <div class="row">
+    <button class="primary" id="btnNew">新局 New</button>
+    <button id="btnPass">停一手 Pass</button>
+  </div>
+  <div class="row">
+    <button id="btnUndo">悔棋 Undo</button>
+    <button id="btnResign">认输 Resign</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field">
+    <label>棋盘 Board</label>
+    <div class="seg" id="segSize">
+      <button data-v="9">9×9</button>
+      <button data-v="13">13×13</button>
+      <button data-v="19" class="on">19×19</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>对手 Opponent</label>
+    <div class="seg" id="segMode">
+      <button data-v="2p" class="on">双人 2 Players</button>
+      <button data-v="ai">电脑 vs AI</button>
+    </div>
+  </div>
+
+  <div class="field" id="aiOpts" style="display:none">
+    <label>AI 执子 / 难度</label>
+    <div class="seg" id="segColor" style="margin-bottom:8px">
+      <button data-v="2" class="on">AI 执白 White</button>
+      <button data-v="1">AI 执黑 Black</button>
+    </div>
+    <div class="seg" id="segDiff">
+      <button data-v="easy">入门 Easy</button>
+      <button data-v="med" class="on">普通 Medium</button>
+      <button data-v="strong">高级 Strong</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">黑棋先行。两次连续 Pass 进入数子。</div>
+
+  <div class="score-box" id="scoreBox">
+    <div class="hint">数子阶段：点击死棋整块标记/取消（虚提）。贴目 7.5（中国规则数子法）。</div>
+    <div class="score-line"><span>黑 Black</span><b id="sB">0</b></div>
+    <div class="score-line"><span>白 White (含贴目)</span><b id="sW">0</b></div>
+    <div class="score-result" id="sResult"></div>
+    <div class="row" style="margin-top:12px;margin-bottom:0">
+      <button id="btnResume">继续 Resume</button>
+      <button class="primary" id="btnEnd">终局 Finish</button>
+    </div>
+  </div>
+
+  <div class="foot">
+    完整规则：提子 · 禁着手（自杀）· 简单劫争 · 中国规则数子。<br>
+    内置 AI：入门为启发式即时对手；普通 / 高级采用蒙特卡洛树搜索（MCTS / UCT，后台 Worker 运行，不卡界面）。9×9、13×13 棋力明显增强，19×19 受纯 JS 限制为有限增强；如需职业级棋力可接入 KataGo。
+  </div>
+</div>
+
+<script type="text/plain" id="mctsWorkerSrc">
+/* ============================================================
+   Go engine + MCTS with RAVE/AMAF and heavy (tactical) playouts.
+   Pure, node-testable. Builds on the fast eNbr machinery.
+   ============================================================ */
+'use strict';
+
+function createEngine(n) {
+  const N = n, NN = n * n;
+  const visited = new Int32Array(NN);
+  const libStamp = new Int32Array(NN);
+  const grpStamp = new Int32Array(NN);
+  const gStones = new Int32Array(NN);
+  const capBuf = new Int32Array(NN);
+  let gen = 0, libGen = 0, grpGen = 0, gCount = 0, gOneLib = -1;
+
+  const nbrs = new Array(NN), diag = new Array(NN), around = new Array(NN);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, a = [], d = [];
+    if (x > 0) a.push(i - 1);
+    if (x < N - 1) a.push(i + 1);
+    if (y > 0) a.push(i - N);
+    if (y < N - 1) a.push(i + N);
+    if (x > 0 && y > 0) d.push(i - N - 1);
+    if (x < N - 1 && y > 0) d.push(i - N + 1);
+    if (x > 0 && y < N - 1) d.push(i + N - 1);
+    if (x < N - 1 && y < N - 1) d.push(i + N + 1);
+    nbrs[i] = a; diag[i] = d; around[i] = a.concat(d);
+  }
+  const onEdge = new Uint8Array(NN);
+  for (let i = 0; i < NN; i++) {
+    const x = i % N, y = (i / N) | 0;
+    onEdge[i] = (x === 0 || y === 0 || x === N - 1 || y === N - 1) ? 1 : 0;
+  }
+
+  function floodGroup(board, idx) {
+    const color = board[idx];
+    gen++; libGen++; gCount = 0;
+    let libs = 0, head = 0;
+    gStones[gCount++] = idx; visited[idx] = gen;
+    while (head < gCount) {
+      const cur = gStones[head++], nb = nbrs[cur];
+      for (let k = 0; k < nb.length; k++) {
+        const j = nb[k], v = board[j];
+        if (v === 0) { if (libStamp[j] !== libGen) { libStamp[j] = libGen; libs++; gOneLib = j; } }
+        else if (v === color && visited[j] !== gen) { visited[j] = gen; gStones[gCount++] = j; }
+      }
+    }
+    return libs;
+  }
+
+  function isTrueEye(board, i, color) {
+    if (board[i] !== 0) return false;
+    const nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) if (board[nb[k]] !== color) return false;
+    const dg = diag[i];
+    let own = 0;
+    for (let k = 0; k < dg.length; k++) if (board[dg[k]] === color) own++;
+    if (dg.length < 4) return own >= dg.length;
+    return own >= 3;
+  }
+
+  function legalNonSuicide(board, i, color) {
+    const opp = 3 - color, nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) if (board[nb[k]] === 0) return true;
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k], v = board[j];
+      if (v === color) { if (floodGroup(board, j) >= 2) return true; }
+      else if (v === opp) { if (floodGroup(board, j) === 1) return true; }
+    }
+    return false;
+  }
+
+  // tree-side apply (no playout bookkeeping)
+  function applyMove(board, i, color) {
+    board[i] = color;
+    const opp = 3 - color;
+    let captured = 0;
+    grpGen++;
+    const nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k];
+      if (board[j] === opp && grpStamp[j] !== grpGen) {
+        const libs = floodGroup(board, j);
+        for (let s = 0; s < gCount; s++) grpStamp[gStones[s]] = grpGen;
+        if (libs === 0) for (let s = 0; s < gCount; s++) { board[gStones[s]] = 0; captured++; }
+      }
+    }
+    return captured;
+  }
+  function ownLibsAt(board, i) { return floodGroup(board, i); }
+
+  /* ---- AMAF (RAVE) bookkeeping ---- */
+  const amafStamp = new Int32Array(NN);
+  const amafColor = new Int8Array(NN);
+  let amafGen = 0;
+  function amafReset() { amafGen++; }
+  function amafMark(idx, color) { if (amafStamp[idx] !== amafGen) { amafStamp[idx] = amafGen; amafColor[idx] = color; } }
+  function amafColorOf(idx) { return amafStamp[idx] === amafGen ? amafColor[idx] : 0; }
+
+  /* ---- playout machinery ---- */
+  const pEmpties = [];
+  const pPos = new Int32Array(NN);
+  const eNbr = new Int8Array(NN);
+  let scanPick = -1;
+
+  function recountNbr(board, i) {
+    let c = 0; const nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) if (board[nb[k]] === 0) c++;
+    eNbr[i] = c;
+  }
+
+  // does placing `color` at p (already set on board) capture anything?
+  function capturesAt(board, p, color) {
+    const opp = 3 - color, nb = nbrs[p];
+    for (let k = 0; k < nb.length; k++) { const j = nb[k]; if (board[j] === opp) { if (floodGroup(board, j) === 0) return true; } }
+    return false;
+  }
+  // is playing empty p a bad self-atari (resulting group 1 liberty, captures nothing)?
+  function selfAtari(board, color, p) {
+    board[p] = color;
+    let res;
+    if (capturesAt(board, p, color)) res = false;
+    else { const libs = floodGroup(board, p); res = libs <= 1; }
+    board[p] = 0;
+    return res;
+  }
+
+  // tactical reply to opponent's last move m: capture a group in atari, else save own group in atari
+  function tacticalReply(board, color, m) {
+    const opp = 3 - color, nb = nbrs[m];
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k];
+      if (board[j] === opp) { const libs = floodGroup(board, j); if (libs === 1) return gOneLib; }
+    }
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k];
+      if (board[j] === color) { const libs = floodGroup(board, j); if (libs === 1) { const L = gOneLib; if (!selfAtari(board, color, L)) return L; } }
+    }
+    return -1;
+  }
+
+  // a random sensible move in the 3x3 around m (liberty-bearing, not self-atari)
+  function localMove(board, color, m, rng) {
+    const a = around[m];
+    let count = 0; scanPick = -1;
+    for (let k = 0; k < a.length; k++) {
+      const idx = a[k];
+      if (board[idx] !== 0) continue;
+      const e = eNbr[idx];
+      if (e >= 2) { count++; if (rng() < 1 / count) scanPick = idx; }
+      else if (e === 1 && !selfAtari(board, color, idx)) { count++; if (rng() < 1 / count) scanPick = idx; }
+    }
+    return count ? scanPick : -1;
+  }
+
+  function poMove(board, color, last, rng) {
+    const E = pEmpties.length;
+    if (E === 0) return -1;
+    if (last >= 0) {
+      const t = tacticalReply(board, color, last);
+      if (t >= 0) return t;
+      if (rng() < 0.5) { const l = localMove(board, color, last, rng); if (l >= 0) return l; }
+    }
+    for (let tcnt = 0; tcnt < 8; tcnt++) {
+      const idx = pEmpties[(rng() * E) | 0];
+      const e = eNbr[idx];
+      if (e >= 2) return idx;
+      if (e === 1 && !selfAtari(board, color, idx)) return idx;
+    }
+    let count = 0; scanPick = -1;
+    for (let k = 0; k < E; k++) { const idx = pEmpties[k]; if (eNbr[idx] >= 2) { count++; if (rng() < 1 / count) scanPick = idx; } }
+    if (count) return scanPick;
+    for (let k = 0; k < E; k++) { const idx = pEmpties[k]; if (eNbr[idx] === 1 && !selfAtari(board, color, idx)) { count++; if (rng() < 1 / count) scanPick = idx; } }
+    return count ? scanPick : -1;
+  }
+
+  function poApply(board, i, color) {
+    board[i] = color;
+    { const p = pPos[i], last = pEmpties[pEmpties.length - 1]; pEmpties[p] = last; pPos[last] = p; pEmpties.pop(); }
+    const nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) eNbr[nb[k]]--;
+    const opp = 3 - color;
+    let capN = 0; grpGen++;
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k];
+      if (board[j] === opp && grpStamp[j] !== grpGen) {
+        const libs = floodGroup(board, j);
+        for (let s = 0; s < gCount; s++) grpStamp[gStones[s]] = grpGen;
+        if (libs === 0) for (let s = 0; s < gCount; s++) capBuf[capN++] = gStones[s];
+      }
+    }
+    if (capN) {
+      for (let s = 0; s < capN; s++) { const st = capBuf[s]; board[st] = 0; pPos[st] = pEmpties.length; pEmpties.push(st); }
+      for (let s = 0; s < capN; s++) {
+        const st = capBuf[s]; recountNbr(board, st);
+        const nbs = nbrs[st];
+        for (let k = 0; k < nbs.length; k++) if (board[nbs[k]] === 0) recountNbr(board, nbs[k]);
+      }
+    }
+    return capN;
+  }
+
+  function scoreSign(board, komi) {
+    let b = 0, w = 0;
+    for (let i = 0; i < NN; i++) { const v = board[i]; if (v === 1) b++; else if (v === 2) w++; }
+    gen++;
+    for (let p = 0; p < NN; p++) {
+      if (board[p] !== 0 || visited[p] === gen) continue;
+      let head = 0; gStones[0] = p; let cnt = 1; visited[p] = gen;
+      let tB = false, tW = false;
+      while (head < cnt) {
+        const cur = gStones[head++], nb = nbrs[cur];
+        for (let k = 0; k < nb.length; k++) {
+          const j = nb[k], v = board[j];
+          if (v === 0) { if (visited[j] !== gen) { visited[j] = gen; gStones[cnt++] = j; } }
+          else if (v === 1) tB = true; else tW = true;
+        }
+      }
+      if (tB && !tW) b += cnt; else if (tW && !tB) w += cnt;
+    }
+    return b > w + komi ? 1 : -1;
+  }
+  function scoreSignFinal(board, komi) {
+    for (;;) {
+      let removedAny = false;
+      gen++; const stamp = gen;
+      for (let p = 0; p < NN; p++) {
+        if (board[p] === 0 || visited[p] === stamp) continue;
+        const color = board[p];
+        libGen++; gCount = 0;
+        let libs = 0, head = 0;
+        gStones[gCount++] = p; visited[p] = stamp;
+        while (head < gCount) {
+          const cur = gStones[head++], nb = nbrs[cur];
+          for (let k = 0; k < nb.length; k++) {
+            const j = nb[k], v = board[j];
+            if (v === 0) { if (libStamp[j] !== libGen) { libStamp[j] = libGen; libs++; } }
+            else if (v === color && visited[j] !== stamp) { visited[j] = stamp; gStones[gCount++] = j; }
+          }
+        }
+        if (libs <= 1) { for (let s = 0; s < gCount; s++) board[gStones[s]] = 0; removedAny = true; }
+      }
+      if (!removedAny) break;
+    }
+    return scoreSign(board, komi);
+  }
+
+  // light playout from board (mutated). Marks AMAF for every move played.
+  function playout(board, toMove, komi, rng) {
+    pEmpties.length = 0;
+    for (let i = 0; i < NN; i++) { if (board[i] === 0) { pPos[i] = pEmpties.length; pEmpties.push(i); recountNbr(board, i); } }
+    let color = toMove, passes = 0, moves = 0, last = -1;
+    const cap = NN * 2;
+    while (passes < 2 && moves < cap) {
+      const mv = poMove(board, color, last, rng);
+      if (mv < 0) { passes++; last = -1; color = 3 - color; continue; }
+      amafMark(mv, color);
+      poApply(board, mv, color);
+      last = mv; passes = 0; color = 3 - color; moves++;
+    }
+    return scoreSignFinal(board, komi);
+  }
+
+  function genMoves(board, color, ko) {
+    const out = [];
+    for (let i = 0; i < NN; i++) {
+      if (board[i] !== 0 || i === ko) continue;
+      if (isTrueEye(board, i, color)) continue;
+      if (!legalNonSuicide(board, i, color)) continue;
+      out.push(i);
+    }
+    return out;
+  }
+  function cheapKey(board, i) {
+    let c = 0; const nb = nbrs[i];
+    for (let k = 0; k < nb.length; k++) if (board[nb[k]] !== 0) c++;
+    const x = i % N, y = (i / N) | 0;
+    const d = Math.min(x, y, N - 1 - x, N - 1 - y);
+    const lv = d === 0 ? -4 : d === 1 ? -2 : (d === 2 || d === 3) ? 3 : 2;
+    return c * 4 + lv;
+  }
+  function genCandidates(board, color, ko) {
+    const out = [];
+    for (let i = 0; i < NN; i++) {
+      if (board[i] !== 0 || i === ko) continue;
+      if (isTrueEye(board, i, color)) continue;
+      out.push(i);
+    }
+    out.sort((a, z) => cheapKey(board, z) - cheapKey(board, a));
+    return out;
+  }
+  function prior(board, i, color, openingFrac) {
+    const opp = 3 - color, nb = nbrs[i];
+    let s = 0, capture = 0, atariOpp = 0, friend = 0, enemy = 0;
+    for (let k = 0; k < nb.length; k++) {
+      const j = nb[k], v = board[j];
+      if (v === color) friend++;
+      else if (v === opp) { const libs = floodGroup(board, j); enemy++; if (libs === 1) capture++; else if (libs === 2) atariOpp++; }
+    }
+    if (capture) s += 3;
+    s += atariOpp * 0.8 + friend * 0.4 + enemy * 0.2;
+    if (openingFrac > 0 && onEdge[i]) s -= 1.2;
+    const v = 1 / (1 + Math.exp(-s * 0.6));
+    return 0.12 + v * 0.78;
+  }
+
+  return {
+    N, NN, nbrs, isTrueEye, legalNonSuicide, applyMove, ownLibsAt,
+    playout, scoreSign, scoreSignFinal, genMoves, genCandidates, prior, floodGroup,
+    amafReset, amafMark, amafColorOf, selfAtari
+  };
+}
+
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function mctsSearch(eng, rootBoard, n, color, ko, komi, timeMs, rng, maxIters) {
+  const C = 0.5, PRIOR_N = 8, RAVE_EQUIV = 2000;
+  const rootMoves = eng.genMoves(rootBoard, color, ko);
+  if (rootMoves.length === 0) return { move: -1, winrate: 0.5, iters: 0 };
+  if (rootMoves.length === 1) return { move: rootMoves[0], winrate: 0.5, iters: 0 };
+
+  let stones = 0; for (let i = 0; i < rootBoard.length; i++) if (rootBoard[i]) stones++;
+  const openingFrac = Math.max(0, 1 - stones / (n * n * 0.25));
+
+  function makeNode(board, toMove, lastPlayer, ko2) {
+    return { board, toMove, lastPlayer, move: -1, children: [],
+             untried: eng.genCandidates(board, toMove, ko2),
+             wins: 0, visits: 0, rWins: 0, rVisits: 0 };
+  }
+  const root = makeNode(rootBoard, color, 0, ko);
+
+  function selectChild(node) {
+    const logN = Math.log(node.visits + 1);
+    let best = null, bestU = -Infinity;
+    const cs = node.children;
+    for (let k = 0; k < cs.length; k++) {
+      const c = cs[k];
+      const q = c.wins / c.visits;
+      let val;
+      if (c.rVisits > 0) {
+        const qr = c.rWins / c.rVisits;
+        const beta = Math.sqrt(RAVE_EQUIV / (3 * c.visits + RAVE_EQUIV));
+        val = (1 - beta) * q + beta * qr;
+      } else val = q;
+      val += C * Math.sqrt(logN / c.visits);
+      if (val > bestU) { bestU = val; best = c; }
+    }
+    return best;
+  }
+
+  const start = Date.now();
+  let iter = 0;
+  for (;;) {
+    if ((iter & 31) === 0 && Date.now() - start >= timeMs) break;
+    if (maxIters && iter >= maxIters) break;
+    eng.amafReset();
+    let node = root;
+    const path = [root];
+    while (node.untried.length === 0 && node.children.length > 0) {
+      node = selectChild(node);
+      path.push(node);
+    }
+    while (node.untried.length > 0) {
+      const mv = node.untried.shift();
+      const nb = node.board.slice();
+      const cap = eng.applyMove(nb, mv, node.toMove);
+      if (cap === 0 && eng.ownLibsAt(nb, mv) === 0) continue;
+      const child = makeNode(nb, 3 - node.toMove, node.toMove, -1);
+      child.move = mv;
+      const p = eng.prior(node.board, mv, node.toMove, openingFrac);
+      child.visits = PRIOR_N; child.wins = PRIOR_N * p;
+      child.rVisits = PRIOR_N; child.rWins = PRIOR_N * p;
+      node.children.push(child);
+      node = child; path.push(node);
+      break;
+    }
+    // mark AMAF for tree-descent moves (in game order)
+    for (let k = 1; k < path.length; k++) eng.amafMark(path[k].move, path[k].lastPlayer);
+    // simulate (playout marks AMAF for rollout moves)
+    const sim = node.board.slice();
+    const result = eng.playout(sim, node.toMove, komi, rng);
+    // backprop: normal stats + RAVE
+    for (let k = 0; k < path.length; k++) {
+      const nd = path[k];
+      nd.visits++;
+      if ((nd.lastPlayer === 1 && result === 1) || (nd.lastPlayer === 2 && result === -1)) nd.wins++;
+      const toMove = nd.toMove;
+      const win = (toMove === 1 && result === 1) || (toMove === 2 && result === -1);
+      const cs = nd.children;
+      for (let c = 0; c < cs.length; c++) {
+        const ch = cs[c];
+        if (eng.amafColorOf(ch.move) === toMove) { ch.rVisits++; if (win) ch.rWins++; }
+      }
+    }
+    iter++;
+  }
+
+  // final move: among well-visited children, prefer best win stats then shape
+  let maxV = 0;
+  for (const c of root.children) if (c.visits > maxV) maxV = c.visits;
+  const thresh = maxV * 0.85;
+  let best = null, bestScore = -Infinity;
+  for (const c of root.children) {
+    if (c.visits >= thresh) {
+      const wr = c.wins / c.visits;
+      const sc = wr + 0.02 * eng.prior(rootBoard, c.move, color, openingFrac);
+      if (sc > bestScore) { bestScore = sc; best = c; }
+    }
+  }
+  // safety: never play a self-atari blunder at the root (unless it captures)
+  if (best && eng.selfAtari(rootBoard, color, best.move)) {
+    let alt = null, altV = -1;
+    for (const c of root.children) {
+      if (!eng.selfAtari(rootBoard, color, c.move) && c.visits > altV) { altV = c.visits; alt = c; }
+    }
+    if (alt) best = alt;
+  }
+  const winrate = best ? best.wins / best.visits : 0.5;
+  return { move: best ? best.move : rootMoves[0], winrate: winrate, iters: iter };
+}
+
+
+/* ---- Web Worker glue ---- */
+var __engines = {};
+function __getEngine(n){ return __engines[n] || (__engines[n] = createEngine(n)); }
+var __rng = makeRng((Math.random() * 1e9) >>> 0);
+self.onmessage = function (e) {
+  var d = e.data;
+  var eng = __getEngine(d.n);
+  var board = Int8Array.from(d.board);
+  var r = mctsSearch(eng, board, d.n, d.color, d.ko, d.komi, d.timeMs, __rng);
+  self.postMessage({ id: d.id, move: r.move, winrate: r.winrate });
+};
+
+</script>
+
+<script>
+/* ===== embedded rules engine (tested, see rules.js) ===== */
+(function (root) {
+  'use strict';
+  function makeBoard(n){return new Int8Array(n*n);}
+  function cloneBoard(b){return b.slice();}
+  function idx(n,x,y){return y*n+x;}
+  function inBounds(n,x,y){return x>=0&&y>=0&&x<n&&y<n;}
+  function neighbors(n,x,y){var o=[];if(x>0)o.push([x-1,y]);if(x<n-1)o.push([x+1,y]);if(y>0)o.push([x,y-1]);if(y<n-1)o.push([x,y+1]);return o;}
+  function getGroup(board,n,x,y){
+    var color=board[idx(n,x,y)],stones=[],libs=new Set();
+    if(color===0)return{color:0,stones:stones,libs:libs};
+    var seen=new Uint8Array(n*n),stack=[[x,y]];seen[idx(n,x,y)]=1;
+    while(stack.length){var p=stack.pop(),px=p[0],py=p[1];stones.push(idx(n,px,py));
+      var nb=neighbors(n,px,py);
+      for(var i=0;i<nb.length;i++){var nx=nb[i][0],ny=nb[i][1],j=idx(n,nx,ny),v=board[j];
+        if(v===0)libs.add(j);else if(v===color&&!seen[j]){seen[j]=1;stack.push([nx,ny]);}}}
+    return{color:color,stones:stones,libs:libs};
+  }
+  function tryMove(board,n,x,y,color,koPoint){
+    var i=idx(n,x,y);
+    if(board[i]!==0)return{ok:false,reason:'occupied'};
+    if(koPoint>=0&&i===koPoint)return{ok:false,reason:'ko'};
+    var opp=color===1?2:1,b=cloneBoard(board);b[i]=color;
+    var captured=[],nb=neighbors(n,x,y),done=new Uint8Array(n*n);
+    for(var k=0;k<nb.length;k++){var nx=nb[k][0],ny=nb[k][1],j=idx(n,nx,ny);
+      if(b[j]===opp&&!done[j]){var g=getGroup(b,n,nx,ny);
+        for(var s=0;s<g.stones.length;s++)done[g.stones[s]]=1;
+        if(g.libs.size===0)for(var s2=0;s2<g.stones.length;s2++){b[g.stones[s2]]=0;captured.push(g.stones[s2]);}}}
+    var own=getGroup(b,n,x,y);
+    if(captured.length===0&&own.libs.size===0)return{ok:false,reason:'suicide'};
+    var ko=-1;
+    if(captured.length===1&&own.stones.length===1&&own.libs.size===1)ko=captured[0];
+    return{ok:true,board:b,captured:captured,ko:ko};
+  }
+  function isLegal(board,n,x,y,color,koPoint){return tryMove(board,n,x,y,color,koPoint).ok;}
+  function score(board,n,dead,komi){
+    var b=cloneBoard(board);if(dead)dead.forEach(function(j){b[j]=0;});
+    var blackArea=0,whiteArea=0,neutral=0,terrB=0,terrW=0;
+    for(var i=0;i<b.length;i++){if(b[i]===1)blackArea++;else if(b[i]===2)whiteArea++;}
+    var seen=new Uint8Array(n*n);
+    for(var p=0;p<b.length;p++){if(b[p]!==0||seen[p])continue;
+      var region=[],touchB=false,touchW=false,stack=[p];seen[p]=1;
+      while(stack.length){var cur=stack.pop();region.push(cur);
+        var cx=cur%n,cy=(cur-(cur%n))/n,nb=neighbors(n,cx,cy);
+        for(var q=0;q<nb.length;q++){var j=idx(n,nb[q][0],nb[q][1]);
+          if(b[j]===0&&!seen[j]){seen[j]=1;stack.push(j);}
+          else if(b[j]===1)touchB=true;else if(b[j]===2)touchW=true;}}
+      if(touchB&&!touchW)terrB+=region.length;else if(touchW&&!touchB)terrW+=region.length;else neutral+=region.length;}
+    var black=blackArea+terrB,white=whiteArea+terrW+komi;
+    return{black:black,white:white,blackStones:blackArea,whiteStones:whiteArea,
+      blackTerr:terrB,whiteTerr:terrW,neutral:neutral,komi:komi,diff:black-white};
+  }
+  function isTrueEye(board,n,x,y,color){
+    if(board[idx(n,x,y)]!==0)return false;
+    var nb=neighbors(n,x,y);
+    for(var i=0;i<nb.length;i++)if(board[idx(n,nb[i][0],nb[i][1])]!==color)return false;
+    var diags=[[x-1,y-1],[x+1,y-1],[x-1,y+1],[x+1,y+1]],controlled=0,offboard=0;
+    for(var d=0;d<diags.length;d++){var dx=diags[d][0],dy=diags[d][1];
+      if(!inBounds(n,dx,dy)){offboard++;continue;}
+      if(board[idx(n,dx,dy)]===color)controlled++;}
+    if(offboard>0)return controlled>=(4-offboard);
+    return controlled>=3;
+  }
+  root.GoRules={makeBoard:makeBoard,cloneBoard:cloneBoard,idx:idx,inBounds:inBounds,
+    neighbors:neighbors,getGroup:getGroup,tryMove:tryMove,isLegal:isLegal,score:score,isTrueEye:isTrueEye};
+})(window);
+
+/* ============================== Game ============================== */
+const R = window.GoRules;
+const KOMI = 7.5;
+
+const cv = document.getElementById('board');
+const ctx = cv.getContext('2d');
+
+const STAR = {
+  9:  [[2,2],[6,2],[4,4],[2,6],[6,6]],
+  13: [[3,3],[9,3],[6,6],[3,9],[9,9]],
+  19: [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15]]
+};
+
+let S = null; // game state
+
+function newGame(){
+  resetAI();
+  const n = S ? S.n : 19;
+  S = {
+    n,
+    board: R.makeBoard(n),
+    turn: 1,                 // 1 black, 2 white
+    ko: -1,
+    caps: {1:0, 2:0},        // stones captured BY black / by white
+    passes: 0,
+    last: -1,
+    history: [],             // snapshots for undo
+    mode: S ? S.mode : '2p', // '2p' | 'ai'
+    aiColor: S ? S.aiColor : 2,
+    diff: S ? S.diff : 'med',
+    phase: 'play',           // 'play' | 'scoring' | 'over'
+    dead: new Set(),
+    msg: '黑棋先行。两次连续 Pass 进入数子。',
+    msgWin: false,
+    thinking: false
+  };
+  S.n = n;
+  layout();
+  render();
+  syncUI();
+  maybeAIMove();
+}
+
+function snapshot(){
+  return { board: S.board.slice(), turn: S.turn, ko: S.ko,
+           caps:{1:S.caps[1],2:S.caps[2]}, passes:S.passes, last:S.last };
+}
+function restore(s){
+  S.board=s.board.slice(); S.turn=s.turn; S.ko=s.ko;
+  S.caps={1:s.caps[1],2:s.caps[2]}; S.passes=s.passes; S.last=s.last;
+}
+
+/* ---------- geometry ---------- */
+let GEO = {};
+function layout(){
+  const n = S.n;
+  const avail = Math.min(window.innerWidth - (window.innerWidth>680?360:36), 720);
+  const px = Math.max(280, Math.min(avail, 720));
+  const gap = px / (n + 1);
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = px * dpr; cv.height = px * dpr;
+  cv.style.width = px+'px'; cv.style.height = px+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  GEO = { px, gap, origin: gap, n, dpr, r: gap*0.46 };
+}
+function toXY(i){ return [i % S.n, Math.floor(i / S.n)]; }
+function pxOf(x,y){ return [GEO.origin + x*GEO.gap, GEO.origin + y*GEO.gap]; }
+function nearest(mx,my){
+  const x = Math.round((mx - GEO.origin)/GEO.gap);
+  const y = Math.round((my - GEO.origin)/GEO.gap);
+  if(x<0||y<0||x>=S.n||y>=S.n) return -1;
+  return R.idx(S.n,x,y);
+}
+
+/* ---------- rendering ---------- */
+function render(hoverIdx){
+  const {px,gap,origin,n,r} = GEO;
+  // wood
+  const g = ctx.createLinearGradient(0,0,px,px);
+  g.addColorStop(0,'#EAC079'); g.addColorStop(1,'#D29A52');
+  ctx.fillStyle = g;
+  roundRect(0,0,px,px,8); ctx.fill();
+  // subtle inner edge
+  ctx.strokeStyle='rgba(80,55,25,.35)'; ctx.lineWidth=1;
+  roundRect(1.5,1.5,px-3,px-3,7); ctx.stroke();
+
+  // grid
+  ctx.strokeStyle='#2C2012'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const p = origin + i*gap;
+    ctx.moveTo(origin, p); ctx.lineTo(origin+(n-1)*gap, p);
+    ctx.moveTo(p, origin); ctx.lineTo(p, origin+(n-1)*gap);
+  }
+  ctx.stroke();
+
+  // star points
+  ctx.fillStyle='#2C2012';
+  (STAR[n]||[]).forEach(([sx,sy])=>{
+    const [cx,cy]=pxOf(sx,sy);
+    ctx.beginPath(); ctx.arc(cx,cy, Math.max(2.4, gap*0.07), 0, 7); ctx.fill();
+  });
+
+  // coordinates
+  ctx.fillStyle='rgba(44,32,18,.55)';
+  ctx.font = `${Math.max(9,gap*0.32)}px var(--sans)`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const letters='ABCDEFGHJKLMNOPQRST';
+  for(let i=0;i<n;i++){
+    const p=origin+i*gap;
+    ctx.fillText(letters[i], p, origin-gap*0.55);
+    ctx.fillText(String(n-i), origin-gap*0.58, p);
+  }
+
+  // territory tint (scoring)
+  if(S.phase==='scoring') drawTerritory();
+
+  // stones
+  for(let i=0;i<S.board.length;i++){
+    let v=S.board[i];
+    if(!v) continue;
+    const [x,y]=toXY(i); const [cx,cy]=pxOf(x,y);
+    const isDead = S.phase==='scoring' && S.dead.has(i);
+    drawStone(cx,cy,r,v,isDead);
+    if(i===S.last && !isDead){
+      ctx.strokeStyle = v===1 ? 'rgba(255,255,255,.85)' : 'rgba(20,20,20,.8)';
+      ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy,r*0.42,0,7); ctx.stroke();
+    }
+  }
+
+  // hover ghost
+  if(hoverIdx!=null && hoverIdx>=0 && S.phase==='play' && !S.thinking &&
+     S.board[hoverIdx]===0 && !(S.mode==='ai' && S.turn===S.aiColor)){
+    if(R.isLegal(S.board,S.n,hoverIdx%S.n,Math.floor(hoverIdx/S.n),S.turn,S.ko)){
+      const [x,y]=toXY(hoverIdx); const [cx,cy]=pxOf(x,y);
+      ctx.globalAlpha=0.42; drawStone(cx,cy,r,S.turn,false); ctx.globalAlpha=1;
+    }
+  }
+}
+function drawStone(cx,cy,r,v,dead){
+  ctx.save();
+  if(dead) ctx.globalAlpha=0.28;
+  // shadow
+  ctx.beginPath(); ctx.arc(cx+r*0.12,cy+r*0.16,r,0,7);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.fill();
+  const grad=ctx.createRadialGradient(cx-r*0.35,cy-r*0.4,r*0.1,cx,cy,r);
+  if(v===1){ grad.addColorStop(0,'#5b5b62'); grad.addColorStop(.45,'#1c1c20'); grad.addColorStop(1,'#070708'); }
+  else { grad.addColorStop(0,'#ffffff'); grad.addColorStop(.6,'#efe9da'); grad.addColorStop(1,'#cfc7b3'); }
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fillStyle=grad; ctx.fill();
+  if(v===2){ ctx.strokeStyle='rgba(120,108,84,.4)'; ctx.lineWidth=.6; ctx.stroke(); }
+  if(dead){ // mark with small x
+    ctx.globalAlpha=0.9; ctx.strokeStyle = v===1?'#e7b':'#a33'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(cx-r*0.4,cy-r*0.4); ctx.lineTo(cx+r*0.4,cy+r*0.4);
+    ctx.moveTo(cx+r*0.4,cy-r*0.4); ctx.lineTo(cx-r*0.4,cy+r*0.4); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawTerritory(){
+  const {gap}=GEO;
+  const s = R.score(S.board, S.n, S.dead, 0);
+  // recompute regions to tint
+  const b = S.board.slice(); S.dead.forEach(j=>b[j]=0);
+  const seen=new Uint8Array(S.n*S.n);
+  for(let p=0;p<b.length;p++){
+    if(b[p]!==0||seen[p])continue;
+    const region=[]; let tB=false,tW=false; const stack=[p]; seen[p]=1;
+    while(stack.length){
+      const cur=stack.pop(); region.push(cur);
+      const cx=cur%S.n, cy=Math.floor(cur/S.n);
+      for(const [nx,ny] of R.neighbors(S.n,cx,cy)){
+        const j=R.idx(S.n,nx,ny);
+        if(b[j]===0&&!seen[j]){seen[j]=1;stack.push(j);}
+        else if(b[j]===1)tB=true; else if(b[j]===2)tW=true;
+      }
+    }
+    let col=null;
+    if(tB&&!tW)col='rgba(20,20,22,.30)'; else if(tW&&!tB)col='rgba(245,240,228,.45)';
+    if(col){ ctx.fillStyle=col;
+      for(const j of region){ const [x,y]=toXY(j); const [cx,cy]=pxOf(x,y);
+        ctx.fillRect(cx-gap*0.28,cy-gap*0.28,gap*0.56,gap*0.56); } }
+  }
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+/* ---------- moves ---------- */
+function playAt(i){
+  if(S.phase!=='play'||S.thinking) return false;
+  const [x,y]=toXY(i);
+  const res=R.tryMove(S.board,S.n,x,y,S.turn,S.ko);
+  if(!res.ok){
+    if(res.reason==='ko') setMsg('打劫禁着，本手不能立即提回。');
+    else if(res.reason==='suicide') setMsg('禁着点（自杀），此处不可落子。');
+    return false;
+  }
+  S.history.push(snapshot());
+  S.board=res.board; S.ko=res.ko; S.last=i;
+  if(res.captured.length) S.caps[S.turn]+=res.captured.length;
+  S.passes=0;
+  S.turn = S.turn===1?2:1;
+  setMsg('');
+  render(); syncUI();
+  return true;
+}
+
+function pass(){
+  if(S.phase!=='play'||S.thinking) return;
+  S.history.push(snapshot());
+  S.passes++; S.ko=-1; S.last=-1;
+  const who = S.turn===1?'黑':'白';
+  S.turn = S.turn===1?2:1;
+  if(S.passes>=2){ enterScoring(); return; }
+  setMsg(`${who}棋 Pass。再连续一次 Pass 即终局数子。`);
+  render(); syncUI(); maybeAIMove();
+}
+
+function undo(){
+  resetAI();
+  if(S.phase==='scoring'){ resumePlay(); return; }
+  if(S.phase==='over'){ /* allow undo of game end */ }
+  if(!S.history.length){ return; }
+  // if vs AI and it's the human's turn now, undo two plies
+  const steps = (S.mode==='ai' && S.history.length>=2 && S.turn!==S.aiColor) ? 2 : 1;
+  for(let k=0;k<steps && S.history.length;k++) restore(S.history.pop());
+  S.phase='play'; setMsg('');
+  render(); syncUI();
+}
+
+function resign(){
+  if(S.phase==='over') return;
+  const loser = S.turn;
+  const winner = loser===1?'白':'黑';
+  S.phase='over';
+  setMsg(`${loser===1?'黑':'白'}棋认输 — ${winner}棋胜。`, true);
+  syncUI();
+}
+
+/* ---------- scoring ---------- */
+function enterScoring(){
+  S.phase='scoring'; S.dead=new Set();
+  setMsg('终局：点击死棋整块进行虚提，下方实时显示子数。');
+  document.getElementById('scoreBox').classList.add('show');
+  render(); updateScore(); syncUI();
+}
+function resumePlay(){
+  S.phase='play'; S.passes=0; S.dead=new Set();
+  document.getElementById('scoreBox').classList.remove('show');
+  setMsg('继续对局。'); render(); syncUI();
+}
+function toggleDead(i){
+  if(S.board[i]===0) return;
+  const g=R.getGroup(S.board,S.n,i%S.n,Math.floor(i/S.n));
+  const on=S.dead.has(g.stones[0]);
+  g.stones.forEach(j=> on ? S.dead.delete(j) : S.dead.add(j));
+  render(); updateScore();
+}
+function updateScore(){
+  const s=R.score(S.board,S.n,S.dead,KOMI);
+  document.getElementById('sB').textContent = s.black.toFixed(s.black%1?1:0);
+  document.getElementById('sW').textContent = s.white.toFixed(1);
+  return s;
+}
+function finishGame(){
+  const s=updateScore();
+  const diff=Math.abs(s.black-s.white);
+  const winner = s.black>s.white ? '黑' : '白';
+  document.getElementById('sResult').textContent =
+    `${winner}棋胜 ${diff.toFixed(1)} 子`;
+  S.phase='over';
+  setMsg(`终局：${winner}棋胜 ${diff.toFixed(1)} 子。`, true);
+  syncUI();
+}
+
+/* ---------- AI ---------- */
+/* Easy = instant heuristic; Medium/Strong = MCTS in a Web Worker. */
+let aiWorker=null, aiGen=0, aiPending=false;
+const DIFF_TIME = {
+  med:    {9:600,  13:800,  19:1000},
+  strong: {9:3000, 13:4000, 19:5000}
+};
+function spawnWorker(){
+  try{
+    if(aiWorker){ aiWorker.terminate(); aiWorker=null; }
+    const src=document.getElementById('mctsWorkerSrc').textContent;
+    const blob=new Blob([src],{type:'application/javascript'});
+    aiWorker=new Worker(URL.createObjectURL(blob));
+    aiWorker.onmessage=onAIResult;
+    aiWorker.onerror=()=>{ aiWorker=null; if(aiPending){ aiPending=false; if(S){ S.thinking=false; maybeAIMove(); } } };
+  }catch(e){ aiWorker=null; }
+}
+function resetAI(){
+  const wasPending=aiPending;
+  aiGen++; aiPending=false; if(S) S.thinking=false;
+  if(!aiWorker || wasPending) spawnWorker();
+}
+
+function maybeAIMove(){
+  if(!S || S.mode!=='ai' || S.phase!=='play' || S.turn!==S.aiColor) return;
+  if(S.diff==='easy' || !aiWorker){
+    S.thinking=true; syncUI();
+    setTimeout(()=>{
+      if(!S || S.mode!=='ai' || S.phase!=='play' || S.turn!==S.aiColor){ if(S)S.thinking=false; return; }
+      const mv=heuristicPick(S.aiColor);
+      S.thinking=false;
+      if(mv<0) pass(); else if(!playAt(mv)) pass();
+    }, 240);
+    return;
+  }
+  const gen=++aiGen;
+  aiPending=true; S.thinking=true; syncUI();
+  const t=(DIFF_TIME[S.diff]||DIFF_TIME.med)[S.n] || 800;
+  aiWorker.postMessage({ id:gen, board:Array.from(S.board), n:S.n,
+    color:S.aiColor, ko:S.ko, komi:KOMI, timeMs:t });
+}
+
+function onAIResult(e){
+  const d=e.data;
+  if(d.id!==aiGen || !aiPending) return;                 // stale / cancelled
+  aiPending=false;
+  if(!S || S.mode!=='ai' || S.phase!=='play' || S.turn!==S.aiColor){ S&&(S.thinking=false); return; }
+  S.thinking=false;
+  let mv=d.move;
+  // pass to end if no legal move, or opponent already passed and AI is ahead
+  if(mv<0){ pass(); return; }
+  if(S.passes>=1 && d.winrate>=0.5){ pass(); return; }
+  if(!playAt(mv)){ const h=heuristicPick(S.aiColor); if(h<0||!playAt(h)) pass(); }
+}
+
+function heuristicPick(color){
+  const n=S.n, opp=color===1?2:1;
+  const moves=[];
+  const stoneCount = S.board.reduce((a,v)=>a+(v?1:0),0);
+  const opening = stoneCount < n*n*0.22;
+  const c0=(n-1)/2;
+
+  for(let i=0;i<S.board.length;i++){
+    if(S.board[i]!==0) continue;
+    const x=i%n, y=Math.floor(i/n);
+    if(R.isTrueEye(S.board,n,x,y,color)) continue;
+    const res=R.tryMove(S.board,n,x,y,color,S.ko);
+    if(!res.ok) continue;
+    const own=R.getGroup(res.board,n,x,y);
+    const selfAtari = own.libs.size===1 && res.captured.length===0;
+    if(S.diff!=='easy' && selfAtari) continue;
+
+    let v = 0;
+    v += res.captured.length * 120;
+    for(const [nx,ny] of R.neighbors(n,x,y)){
+      if(res.board[R.idx(n,nx,ny)]===opp){
+        const g=R.getGroup(res.board,n,nx,ny);
+        if(g.libs.size===1) v += 16;
+      }
+    }
+    if(selfAtari) v -= 70;
+    v += Math.min(own.libs.size,4)*2;
+    for(const [nx,ny] of R.neighbors(n,x,y)){
+      const c=S.board[R.idx(n,nx,ny)];
+      if(c===color) v+=4; else if(c===opp) v+=2;
+    }
+    if(opening){
+      const edge=Math.min(x,y,n-1-x,n-1-y);
+      if(edge<=1) v-=10; else if(edge===2||edge===3) v+=6;
+      v -= (Math.abs(x-c0)+Math.abs(y-c0))*0.15;
+    }
+    v += Math.random()* (S.diff==='easy'?40:6);
+    moves.push({i,v,cap:res.captured.length,selfAtari});
+  }
+  if(!moves.length) return -1;
+
+  if(S.diff==='easy'){
+    const caps=moves.filter(m=>m.cap>0);
+    if(caps.length && Math.random()<0.8) return caps[Math.floor(Math.random()*caps.length)].i;
+    const safe=moves.filter(m=>!m.selfAtari);
+    const pool=safe.length?safe:moves;
+    return pool[Math.floor(Math.random()*pool.length)].i;
+  }
+
+  moves.sort((a,b)=>b.v-a.v);
+  const best=moves[0];
+  if(S.passes>=1 && best.cap===0 && best.v < 6) return -1;
+  return best.i;
+}
+
+/* ---------- UI sync ---------- */
+function setMsg(m, win){ S.msg=m; S.msgWin=!!win; const el=document.getElementById('status');
+  el.textContent=m; el.classList.toggle('win',!!win); }
+function syncUI(){
+  document.getElementById('capB').textContent=S.caps[1];
+  document.getElementById('capW').textContent=S.caps[2];
+  const black=S.turn===1;
+  const box=document.getElementById('turnBox');
+  document.getElementById('turnDot').className='dot '+(black?'black':'white');
+  const who=document.getElementById('turnWho');
+  let label = black?'黑先 · Black to move':'白方 · White to move';
+  let sub='点击交叉点落子';
+  if(S.thinking){ sub='AI 思考中…'; }
+  if(S.phase==='scoring'){ label='数子 · Scoring'; sub='点击死棋标记'; }
+  if(S.phase==='over'){ label='终局 · Game over'; sub='点击「新局」再来一盘'; }
+  who.innerHTML = label+'<small>'+sub+'</small>';
+  box.classList.toggle('active', S.phase==='play');
+
+  document.getElementById('btnPass').disabled = S.phase!=='play'||S.thinking;
+  document.getElementById('btnUndo').disabled = (S.phase==='play'&&!S.history.length)||S.thinking;
+  document.getElementById('btnResign').disabled = S.phase==='over'||S.thinking;
+}
+
+/* ---------- events ---------- */
+let hover=-1;
+cv.addEventListener('mousemove', e=>{
+  const rect=cv.getBoundingClientRect();
+  const i=nearest(e.clientX-rect.left, e.clientY-rect.top);
+  if(i!==hover){ hover=i; render(hover); }
+});
+cv.addEventListener('mouseleave', ()=>{ hover=-1; render(); });
+cv.addEventListener('click', e=>{
+  const rect=cv.getBoundingClientRect();
+  const i=nearest(e.clientX-rect.left, e.clientY-rect.top);
+  if(i<0) return;
+  if(S.phase==='scoring'){ toggleDead(i); return; }
+  if(S.phase!=='play'||S.thinking) return;
+  if(S.mode==='ai' && S.turn===S.aiColor) return;
+  if(playAt(i)) maybeAIMove();
+});
+
+document.getElementById('btnNew').onclick=()=>{ document.getElementById('scoreBox').classList.remove('show'); document.getElementById('sResult').textContent=''; newGame(); };
+document.getElementById('btnPass').onclick=pass;
+document.getElementById('btnUndo').onclick=undo;
+document.getElementById('btnResign').onclick=resign;
+document.getElementById('btnResume').onclick=resumePlay;
+document.getElementById('btnEnd').onclick=finishGame;
+
+function seg(id,fn){
+  const el=document.getElementById(id);
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); fn(b.dataset.v);
+  });
+}
+seg('segSize', v=>{ S.n=+v; document.getElementById('scoreBox').classList.remove('show'); newGame(); });
+seg('segMode', v=>{ S.mode=v; document.getElementById('aiOpts').style.display = v==='ai'?'block':'none';
+  newGame(); });
+seg('segColor', v=>{ S.aiColor=+v; newGame(); });
+seg('segDiff', v=>{ S.diff=v; });
+
+window.addEventListener('resize', ()=>{ layout(); render(hover); });
+
+/* boot */
+S={n:19}; newGame();
+</script>
+</body>
+</html>

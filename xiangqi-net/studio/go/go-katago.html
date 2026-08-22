@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>围棋 · KataGo 神经网络（约2段）</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<style>
+  :root{ --wood-hi:#EAC079; --wood-lo:#D29A52; --cinnabar:#C2402E; --ink:#1a1613; --panel:#221d18; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; background:radial-gradient(circle at 50% 0%, #2a2420, #14110e 70%); color:#efe6d8;
+    font-family:"Noto Serif SC","Songti SC",serif; min-height:100%; }
+  .wrap{ max-width:760px; margin:0 auto; padding:18px 14px 40px; display:flex; flex-direction:column; align-items:center; }
+  h1{ font-size:22px; letter-spacing:2px; margin:6px 0 2px; font-weight:700; }
+  h1 .k{ color:var(--cinnabar); }
+  .sub{ font-size:12.5px; opacity:.72; margin-bottom:12px; text-align:center; line-height:1.5; }
+  #stats{ font-size:15px; min-height:22px; margin:2px 0 12px; text-align:center; color:#f3e9d9; }
+  .board-box{ position:relative; line-height:0; border-radius:10px; overflow:hidden;
+    background:linear-gradient(160deg, var(--wood-hi), var(--wood-lo));
+    box-shadow:0 12px 34px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.15); padding:2px; }
+  #goban canvas{ display:block; background:transparent; }
+  #lock{ position:absolute; inset:0; display:none; background:rgba(20,15,10,.06); cursor:progress; z-index:5; }
+  .controls{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; }
+  button{ font-family:inherit; font-size:14px; color:#f0e6d6; background:var(--panel);
+    border:1px solid rgba(234,192,121,.25); border-radius:9px; padding:9px 13px; cursor:pointer; transition:.15s; }
+  button:hover{ border-color:var(--cinnabar); color:#fff; }
+  button.accent{ background:var(--cinnabar); border-color:var(--cinnabar); color:#fff; }
+  .seg{ display:inline-flex; border:1px solid rgba(234,192,121,.25); border-radius:9px; overflow:hidden; }
+  .seg button{ border:none; border-radius:0; background:transparent; }
+  .seg button.on{ background:var(--cinnabar); color:#fff; }
+  .foot{ margin-top:20px; font-size:11.5px; opacity:.6; text-align:center; line-height:1.7; max-width:640px; }
+  .foot a{ color:var(--wood-hi); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>围棋 · <span class="k">KataGo</span> 神经网络</h1>
+  <div class="sub">19 路 · 神经网络引擎（约 2 段业余）· 首次进入会下载约 12MB 网络并缓存<br>本机运行，无需服务器。WebGL 加速；若显卡不支持则自动回退 CPU（较慢）。</div>
+  <div id="stats">加载中…</div>
+
+  <div class="board-box">
+    <div id="goban"></div>
+    <div id="lock"></div>
+  </div>
+
+  <div class="controls">
+    <button class="accent" onclick="newGame(1)">新局 · 你执黑</button>
+    <button onclick="newGame(2)">新局 · 你执白</button>
+    <button onclick="passMove()">停一手 Pass</button>
+    <button onclick="undo2()">悔棋</button>
+    <button onclick="eval_()">形势判断</button>
+    <span class="seg" id="segLevel">
+      <button data-v="dan" class="on" onclick="setLevel('dan',this)">最强 (2段)</button>
+      <button data-v="kyu" onclick="setLevel('kyu',this)">较弱 (约6级)</button>
+    </span>
+  </div>
+
+  <div class="foot">
+    神经网络：<a href="https://github.com/lightvector/KataGo">KataGo</a>（Lightvector）· tfjs 转换 by
+    <a href="https://github.com/y-ich/KataGo">Yuji ICHIKAWA</a> · 浏览器棋盘与特征编码改编自
+    <a href="https://github.com/maksimKorzh/kata-model-js">maksimKorzh/kata-model-js</a>。<br>
+    该网络仅实现了部分输入特征，约 2 段水平、偶有失误。若要更强（接近职业），需后端运行完整 KataGo 引擎。
+  </div>
+</div>
+
+<script>
+/* ================= goban engine (adapted from maksimKorzh/kata-model-js) ================= */
+/*****************************************\
+  =======================================
+ 
+                 Gobang JS
+
+                    by
+
+             Code Monkey King
+
+  =======================================
+\*****************************************/
+
+const Goban = function(params) {
+  // CANVAS
+  var canvas, ctx, cell;
+
+  // DATA
+  const EMPTY = 0
+  const BLACK = 1
+  const WHITE = 2
+  const MARKER = 4
+  const OFFBOARD = 7
+  const LIBERTY = 8
+
+  var board = [];
+  var history = [];
+  var komi = 6.5;
+  var size;
+  var side = BLACK;
+  var liberties = [];
+  var block = [];
+  var ko = EMPTY;
+  var bestMove = EMPTY;
+  var userMove = 0;
+  var moveCount = 0;
+
+  // PRIVATE METHODS
+  function drawBoard() { /* Render board to screen */
+    cell = canvas.width / size;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    for (let i = 1; i < size-1; i++) {
+      const x = i * cell + cell / 2;
+      const y = i * cell + cell / 2;
+      let offset = cell * 2 - cell / 2;
+      ctx.moveTo(offset, y);
+      ctx.lineTo(canvas.width - offset, y);
+      ctx.moveTo(x, offset);
+      ctx.lineTo(x, canvas.height - offset);
+    };ctx.stroke();
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        let sq = row * size + col;
+        let starPoints = {
+           9: [36, 38, 40, 58, 60, 62, 80, 82, 84],
+          13: [64, 67, 70, 109, 112, 115, 154, 157, 160],
+          19: [88, 94, 100, 214, 220, 226, 340, 346, 352]
+        }
+        if ([9, 13, 19].includes(size-2) && starPoints[size-2].includes(sq)) {
+          ctx.beginPath();
+          ctx.arc(col * cell+(cell/4)*2, row * cell +(cell/4)*2, cell / 6 - 2, 0, 2 * Math.PI);
+          ctx.fillStyle = 'black';
+          ctx.fill();
+          ctx.stroke();
+        }
+        if (board[sq] == 7) continue;
+        let color = board[sq] == 1 ? "black" : "white";
+        if (board[sq]) {
+          ctx.beginPath();
+          ctx.arc(col * cell + cell / 2, row * cell + cell / 2, cell / 2 - 2, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.stroke();
+        }
+        if (sq == userMove) {
+          let color = board[sq] == 1 ? "white" : "black";
+          ctx.beginPath();
+          ctx.arc(col * cell+(cell/4)*2, row * cell +(cell/4)*2, cell / 5 - 2, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function userInput(event) { /* Handle user input */
+    if (params.sgf) return;
+    let rect = canvas.getBoundingClientRect();
+    let mouseX = event.clientX - rect.left;
+    let mouseY = event.clientY - rect.top;
+    let col = Math.floor(mouseX / cell);
+    let row = Math.floor(mouseY / cell);
+    let sq = row * size + col;
+    if (board[sq]) return;
+    if (!setStone(sq, side, true)) return;
+    drawBoard();
+    setTimeout(function() { try { params.response(); } catch (e) { /* Specify custom response function */ } }, 100)
+  }
+
+  function clearBoard() { /* Empty board, set offboard squares */
+    for (let sq = 0; sq < size ** 2; sq++) {
+      switch (true) {
+        case (sq < size):
+        case (sq >= (size ** 2 - size)):
+        case (!(sq % size)):
+          board[sq] = OFFBOARD;
+          board[sq-1] = OFFBOARD;
+          break;
+        default: board[sq] = 0;
+      }
+    }
+  }
+
+  function setStone(sq, color, user) { /* Place stone on board */
+    if (board[sq] != EMPTY) {
+      if (user) alert("Illegal move!");
+      return false;
+    } else if (sq == ko) {
+      if (user) alert("Ko!");
+      return false;
+    } let old_ko = ko;
+    ko = EMPTY;
+    board[sq] = color;
+    captures(3 - color, sq);
+    count(sq, color);
+    let suicide = liberties.length ? false : true; 
+    restoreBoard();
+    if (suicide) {
+      board[sq] = EMPTY;
+      ko = old_ko;
+      moveCount--;
+      if (user) alert("Suicide move!");
+      return false;
+    } 
+    side = 3 - side;
+    userMove = sq;
+    history.push({
+      'ply': moveCount+1,
+      'side': (3-color),
+      'move': sq,
+      'board': JSON.stringify(board),
+      'ko': ko
+    });
+    moveCount = history.length-1;
+    return true;
+  }
+
+  function setHandicap(stones) {
+    if (stones < 0 || stones > 9) return;
+    let handicap = stones;
+    let handicapStones = [88, 100, 340, 352, 214, 226, 94, 346, 220].slice(0, handicap);
+    for (let sq of handicapStones) {
+      goban.play(sq, goban.BLACK);
+      if (sq != handicapStones[handicap-1]) goban.pass();
+      goban.refresh();
+    }
+  }
+
+  function pass() {
+    history.push({
+      'ply': moveCount+1,
+      'side': (3-side),
+      'move': EMPTY,
+      'board': JSON.stringify(board),
+      'ko': ko
+    });
+    moveCount = history.length-1;
+    ko = EMPTY;
+    side = 3 - side;
+  }
+
+  function count(sq, color) { /* Count group liberties */
+    stone = board[sq];
+    if (stone == OFFBOARD) return;
+    if (stone && (stone & color) && (stone & MARKER) == 0) {
+      block.push(sq);
+      board[sq] |= MARKER;
+      for (let offset of [1, size, -1, -size]) count(sq+offset, color);
+    } else if (stone == EMPTY) {
+      board[sq] |= LIBERTY;
+      liberties.push(sq);
+    }
+  }
+
+  function restoreBoard() { /* Remove group markers */
+    block = []; liberties = []; points_side = [];
+    for (let sq = 0; sq < size ** 2; sq++) {
+      if (board[sq] != OFFBOARD) board[sq] &= 3;
+    }
+  }
+
+  function captures(color, move) { /* Handle captured stones */
+    for (let sq = 0; sq < size ** 2; sq++) {
+      let stone = board[sq];
+      if (stone == OFFBOARD) continue;
+      if (stone & color) {
+        count(sq, color);
+        if (liberties.length == 0) clearBlock(move);
+        restoreBoard()
+      }
+    }
+  }
+
+  function clearBlock(move) { /* Erase stones when captured */
+    if (block.length == 1 && inEye(move, 0) == 3-side) ko = block[0];
+    for (let i = 0; i < block.length; i++)
+      board[block[i]] = EMPTY;
+  }
+
+  function inEye(sq) { /* Check if sqaure is in diamond shape */
+    let eyeColor = -1;
+    let otherColor = -1;
+    for (let offset of [1, size, -1, -size]) {
+      if (board[sq+offset] == OFFBOARD) continue;
+      if (board[sq+offset] == EMPTY) return 0;
+      if (eyeColor == -1) {
+        eyeColor = board[sq+offset];
+        otherColor = 3-eyeColor;
+      } else if (board[sq+offset] == otherColor)
+        return 0;
+    }
+    if (eyeColor > 2) eyeColor -= MARKER;
+    return eyeColor;
+  }
+
+  function loadHistoryMove() {
+    let move = history[moveCount];
+    board = JSON.parse(move.board);
+    side = move.side;
+    ko = move.ko;
+    userMove = move.move;
+    drawBoard();
+  }
+
+  function undoMove() {
+    if (moveCount == 0) return;
+    moveCount--;
+    history.pop();
+    loadHistoryMove();
+  }
+
+  function firstMove() {
+    moveCount = 0;
+    loadHistoryMove();
+  }
+
+  function prevMove() {
+    if (moveCount == 0) return;
+    moveCount--;
+    loadHistoryMove();
+  }
+
+  function prevFewMoves(few) {
+    if (moveCount == 0) return;
+    if ((moveCount - few) >= 0) moveCount -= few;
+    else firstMove();
+    loadHistoryMove();
+  }
+
+  function nextMove() {
+    if (moveCount == history.length-1) return;
+    moveCount++;
+    loadHistoryMove();
+  }
+
+  function nextFewMoves(few) {
+    if (moveCount == history.length-1) return;
+    if ((moveCount + few) <= history.length-1) moveCount += few;
+    else lastMove();
+    loadHistoryMove();
+  }
+
+  function lastMove() {
+    moveCount = history.length-1
+    loadHistoryMove();
+  }
+
+  function loadSgf(sgf) {
+    for (let move of sgf.split(';')) {
+      if (move.length) {
+        if (move.charCodeAt(2) < 97 || move.charCodeAt(2) > 115) { continue; }
+        let player = move[0] == 'B' ? BLACK : WHITE;
+        let col = move.charCodeAt(2)-97;
+        let row = move.charCodeAt(3)-97;
+        let sq = (row+1) * 21 + (col+1);
+        setStone(sq, player, false);
+      }
+    } firstMove();
+  }
+
+  function saveSgf() {
+    let sgf = '(';
+    for (let item of history.slice(1, history.length)) {
+      let col = item.move % 21;
+      let row = Math.floor(item.move / 21);
+      let color = item.side == BLACK ? 'W' : 'B';
+      let coords = ' abcdefghijklmnopqrs';
+      let move = coords[col] + coords[row];
+      if (move == '  ') sgf += ';' + color + '[]'
+      else sgf += ';' + color + '[' + move + ']';
+    } sgf += ')'
+    return sgf;
+  }
+
+  function resizeCanvas() {
+    let offset = params.offset == undefined ? 0 : params.offset;
+    if (window.innerWidth > window.innerHeight) {
+      canvas.width = window.innerHeight - offset; // Desktop
+      canvas.height = canvas.width;
+    } else {
+      canvas.width = window.innerWidth - offset;  // Mobile
+      canvas.height = canvas.width;
+    } drawBoard();
+  }
+
+  function init() { /* Init goban module */
+    let container = document.getElementById('goban');
+    canvas = document.createElement('canvas');
+    canvas.style="margin-bottom: -3%;";
+    container.appendChild(canvas);
+    size = params.size+2;
+    canvas.addEventListener('click', userInput);
+    ctx = canvas.getContext('2d');
+    clearBoard();
+    history.push({
+      'ply': 0,
+      'side': BLACK,
+      'move': EMPTY,
+      'board': JSON.stringify(board),
+      'ko': ko
+    });
+    moveCount = history.length-1;
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  }
+  
+  // PUBLIC API
+  return {
+    init: init(),
+    BLACK: BLACK,
+    WHITE: WHITE,
+    importSgf: function(sgf) { return loadSgf(sgf); },
+    exportSgf: function() { return saveSgf(); },
+    position: function() { return board; },
+    setKomi: function(komiVal) { komi = komiVal; },
+    komi: function() { return komi; },
+    history: function() { return history; },
+    side: function() { return side; },
+    ko: function() { return ko; },
+    count: function(sq, color) { return count(sq, color); },
+    liberties: function() { return liberties; },
+    restore: function() { return restoreBoard(); },
+    play: function(sq, color, user) { return setStone(sq, color, user); },
+    handicap: function(stones) { return setHandicap(stones); },
+    pass: function() { return pass(); },
+    refresh: function() { return drawBoard(); },
+    undoMove: function() { return undoMove(); },
+    firstMove: function() { return firstMove(); },
+    prevFewMoves: function(few) { return prevFewMoves(few); },
+    prevMove: function() { return prevMove(); },
+    nextMove: function() { return nextMove(); },
+    nextFewMoves: function(few) { return nextFewMoves(few); },
+    lastMove: function() { return lastMove(); }
+  }
+}
+
+/* ================= KataGo net inference + game control ================= */
+/* ============================================================
+   KataGo neural-net Go — inference + game control.
+   Neural net: KataGo b10c128 (by Lightvector), converted to
+   TensorFlow.js by Yuji ICHIKAWA. Browser feature encoding and
+   goban engine adapted from maksimKorzh/kata-model-js.
+   ============================================================ */
+
+// ---- model input constants (KataGo b10c128) ----
+const batches = 1;
+const inputBufferLength = 19 * 19;
+const inputBufferChannels = 22;
+const inputGlobalBufferChannels = 19;
+const global_inputs = new Float32Array(batches * inputGlobalBufferChannels);
+
+// model served from a CDN mirror of the KataGo tfjs weights (~12 MB, cached after first load)
+const MODEL_BASE = 'b10c128-s1141046784-d204142634/model.json';
+const MODEL_URLS = [
+  'https://cdn.jsdelivr.net/gh/maksimKorzh/kata-model-js@main/model/' + MODEL_BASE,
+  'https://raw.githubusercontent.com/maksimKorzh/kata-model-js/main/model/' + MODEL_BASE
+];
+const IDB_URL = 'indexeddb://katago-b10c128';
+
+// ---- runtime state ----
+let editMode = 0;
+let level = 'dan';            // 'dan' (~2d, strongest) or 'kyu' (weakened)
+let computerSide = 2;        // side the net plays (1=black, 2=white)
+let humanColor = 1;          // human plays black by default
+let KATA = null;             // loaded tf GraphModel
+let busy = false;
+let goban = null;
+
+function setStatus(s) { const el = document.getElementById('stats'); if (el) el.innerHTML = s; }
+function setBusy(b) {
+  busy = b;
+  const lock = document.getElementById('lock');
+  if (lock) lock.style.display = b ? 'block' : 'none';
+}
+
+// ---- load a GraphModel from IndexedDB cache, else download from CDN ----
+async function loadModelWeights() {
+  try { return await tf.loadGraphModel(IDB_URL); } catch (e) { /* not cached yet */ }
+  for (const url of MODEL_URLS) {
+    try {
+      setStatus('首次加载：正在下载 KataGo 神经网络（约 12MB）…');
+      const m = await tf.loadGraphModel(url, { onProgress: f => setStatus('下载神经网络… ' + Math.round(f * 100) + '%') });
+      try { await m.save(IDB_URL); } catch (_) { /* caching optional */ }
+      return m;
+    } catch (e) { console.warn('model load failed from', url, e); }
+  }
+  throw new Error('KataGo model download failed');
+}
+
+// ---- one real inference on an empty board; true if outputs are finite ----
+async function backendSane(model) {
+  const bin = new Float32Array(batches * inputBufferLength * inputBufferChannels);
+  for (let s = 0; s < inputBufferLength; s++) bin[inputBufferChannels * s + 0] = 1.0;
+  const g = new Float32Array(batches * inputGlobalBufferChannels);
+  const bT = tf.tensor(bin, [batches, inputBufferLength, inputBufferChannels], 'float32');
+  const gT = tf.tensor(g, [batches, inputGlobalBufferChannels], 'float32');
+  let ok = false;
+  try {
+    const res = await model.executeAsync({ 'swa_model/bin_inputs': bT, 'swa_model/global_inputs': gT });
+    const v = res[1].dataSync();
+    ok = Number.isFinite(v[0]) && Number.isFinite(v[1]) && Number.isFinite(v[100]);
+    res.forEach(r => r.dispose());
+  } catch (e) { console.warn('sanity inference failed', e); ok = false; }
+  bT.dispose(); gT.dispose();
+  return ok;
+}
+
+// ---- ensure model + a working backend (WebGL preferred, CPU fallback) ----
+async function loadModel() {
+  if (KATA) return KATA;
+  for (const b of ['webgl', 'cpu']) {
+    try { await tf.setBackend(b); await tf.ready(); if (tf.getBackend() !== b) continue; } catch (e) { continue; }
+    setStatus('准备神经网络（后端 ' + b + '）…');
+    let m;
+    try { m = await loadModelWeights(); }
+    catch (e) { if (b === 'cpu') { setStatus('神经网络加载失败，请检查网络后刷新页面'); throw e; } continue; }
+    if (await backendSane(m)) { KATA = m; setStatus('神经网络已就绪 · 后端 ' + b); return KATA; }
+    try { m.dispose(); } catch (_) {}
+    if (b === 'cpu') { setStatus('神经网络推理异常，请刷新重试'); throw new Error('inference not finite'); }
+    // WebGL produced invalid output -> fall through to CPU
+  }
+  throw new Error('no working backend');
+}
+
+// ---- build model input tensor from current goban position ----
+function inputTensor() {
+  global_inputs.fill(0);
+  let katago = computerSide;
+  let player = (3 - computerSide);
+  if (level === 'kyu') { player = computerSide; katago = (3 - computerSide); }
+  const bin_inputs = new Float32Array(batches * inputBufferLength * inputBufferChannels);
+  let sq_19x19 = 0, sq_21x21 = 0;
+  for (let y = 0; y < 19; y++) {
+    for (let x = 0; x < 19; x++) {
+      sq_19x19 = (19 * y + x);
+      sq_21x21 = (21 * (y + 1) + (x + 1));
+      bin_inputs[inputBufferChannels * sq_19x19 + 0] = 1.0;
+      if (goban.position()[sq_21x21] == katago) bin_inputs[inputBufferChannels * sq_19x19 + 1] = 1.0;
+      if (goban.position()[sq_21x21] == player) bin_inputs[inputBufferChannels * sq_19x19 + 2] = 1.0;
+      if (goban.position()[sq_21x21] == katago || goban.position()[sq_21x21] == player) {
+        let libs_black = 0, libs_white = 0;
+        goban.count(sq_21x21, goban.BLACK); libs_black = goban.liberties().length; goban.restore();
+        goban.count(sq_21x21, goban.WHITE); libs_white = goban.liberties().length; goban.restore();
+        if (libs_black == 1 || libs_white == 1) bin_inputs[inputBufferChannels * sq_19x19 + 3] = 1.0;
+        if (libs_black == 2 || libs_white == 2) bin_inputs[inputBufferChannels * sq_19x19 + 4] = 1.0;
+        if (libs_black == 3 || libs_white == 3) bin_inputs[inputBufferChannels * sq_19x19 + 5] = 1.0;
+      }
+    }
+  }
+  if (sq_19x19 == goban.ko()) bin_inputs[inputBufferChannels * sq_19x19 + 6] = 1.0;
+  let moveIndex = goban.history().length - 1;
+  if (moveIndex >= 1 && goban.history()[moveIndex - 1].side == player) {
+    let p1 = goban.history()[moveIndex - 1].move;
+    if (p1) bin_inputs[inputBufferChannels * (19 * Math.floor(p1 / 21) + (p1 % 21)) + 9] = 1.0; else global_inputs[0] = 1.0;
+    if (moveIndex >= 2 && goban.history()[moveIndex - 2].side == katago) {
+      let p2 = goban.history()[moveIndex - 2].move;
+      if (p2) bin_inputs[inputBufferChannels * (19 * Math.floor(p2 / 21) + (p2 % 21)) + 10] = 1.0; else global_inputs[1] = 1.0;
+      if (moveIndex >= 3 && goban.history()[moveIndex - 3].side == player) {
+        let p3 = goban.history()[moveIndex - 3].move;
+        if (p3) bin_inputs[inputBufferChannels * (19 * Math.floor(p3 / 21) + (p3 % 21)) + 11] = 1.0; else global_inputs[2] = 1.0;
+        if (moveIndex >= 4 && goban.history()[moveIndex - 4].side == katago) {
+          let p4 = goban.history()[moveIndex - 4].move;
+          if (p4) bin_inputs[inputBufferChannels * (19 * Math.floor(p4 / 21) + (p4 % 21)) + 12] = 1.0; else global_inputs[3] = 1.0;
+          if (moveIndex >= 5 && goban.history()[moveIndex - 5].side == player) {
+            let p5 = goban.history()[moveIndex - 5].move;
+            if (p5) bin_inputs[inputBufferChannels * (19 * Math.floor(p5 / 21) + (p5 % 21)) + 13] = 1.0; else global_inputs[4] = 1.0;
+          }
+        }
+      }
+    }
+  }
+  let selfKomi = (computerSide == goban.WHITE ? goban.komi() + 1 : -goban.komi());
+  global_inputs[5] = selfKomi / 20.0;
+  return bin_inputs;
+}
+
+// ---- ask the net for a move and play it ----
+async function aiMove() {
+  if (editMode || busy) return;
+  setBusy(true);
+  try {
+    await loadModel();
+    computerSide = goban.side();
+    setStatus('KataGo 思考中…');
+    const bin = inputTensor();
+    const binT = tf.tensor(bin, [batches, inputBufferLength, inputBufferChannels], 'float32');
+    const globT = tf.tensor(global_inputs, [batches, inputGlobalBufferChannels], 'float32');
+    const results = await KATA.executeAsync({
+      'swa_model/bin_inputs': binT,
+      'swa_model/global_inputs': globT
+    });
+    // outputs: [ownership, policy(1,2,362), miscvalues(1,10), value(1,3)]
+    const policyT = results[1].reshape([-1]);
+    const policy = await policyT.array();            // 724 = 2 heads x 362
+    const flatScores = results[2].dataSync();
+    policyT.dispose();
+    binT.dispose(); globT.dispose(); results.forEach(r => r.dispose());
+
+    // primary policy head = indices 0..361 (361 board points + pass at 361)
+    const cand = [];
+    for (let i = 0; i < 362; i++) cand.push([policy[i], i]);
+    cand.sort((a, b) => b[0] - a[0]);
+
+    // score lead (points) from the net, relative to the side it plays
+    let scoreLead = (flatScores[2] * 20);
+    if (level === 'kyu') scoreLead -= (20 + goban.komi());
+    const netColor = (level === 'kyu' ? (3 - computerSide) : computerSide);
+    const leaderIsNet = scoreLead > 0;
+    const who = ((leaderIsNet ? netColor : (3 - netColor)) == goban.BLACK) ? '黑' : '白';
+    setStatus('KataGo（' + (computerSide == goban.BLACK ? '执黑' : '执白') + '，约2段）· ' + who + '领先约 ' + Math.abs(scoreLead).toFixed(1) + ' 目');
+
+    // opening variety: among first few moves pick randomly from the top 3
+    let startRank = 0;
+    if (goban.history().length < 8) startRank = Math.floor(Math.random() * 3);
+
+    for (let r = startRank; r < cand.length; r++) {
+      const idx = cand[r][1];
+      if (idx === 361) { goban.pass(); goban.refresh(); break; }        // net wants to pass
+      const row = Math.floor(idx / 19), col = idx % 19;
+      const sq = 21 * (row + 1) + (col + 1);
+      if (goban.play(sq, computerSide, false)) { goban.refresh(); break; }
+      // illegal (occupied/ko/suicide) -> next candidate
+      if (r === cand.length - 1) { goban.pass(); goban.refresh(); }
+    }
+  } catch (e) {
+    console.error(e);
+    setStatus('出错了：' + (e && e.message ? e.message : e));
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function eval_() {
+  if (busy) return;
+  setBusy(true);
+  try {
+    await loadModel();
+    computerSide = goban.side();
+    const bin = inputTensor();
+    const binT = tf.tensor(bin, [batches, inputBufferLength, inputBufferChannels], 'float32');
+    const globT = tf.tensor(global_inputs, [batches, inputGlobalBufferChannels], 'float32');
+    const results = await KATA.executeAsync({ 'swa_model/bin_inputs': binT, 'swa_model/global_inputs': globT });
+    const flatScores = results[2].dataSync();
+    binT.dispose(); globT.dispose(); results.forEach(r => r.dispose());
+    const scoreLead = (flatScores[2] * 20);
+    const who = ((scoreLead > 0 ? computerSide : (3 - computerSide)) == goban.BLACK) ? '黑' : '白';
+    setStatus('形势判断：' + who + '领先约 ' + Math.abs(scoreLead).toFixed(1) + ' 目');
+  } catch (e) { console.error(e); } finally { setBusy(false); }
+}
+
+// ---- game control ----
+function makeGoban() {
+  document.getElementById('goban').innerHTML = '';
+  goban = new Goban({ size: 19, offset: 120, response: function () { aiMove(); } });
+  goban.setKomi(6.5);
+}
+function newGame(color) {
+  if (busy) return;
+  humanColor = color || 1;
+  editMode = 0;
+  makeGoban();
+  setStatus('新对局 · 你执' + (humanColor == 1 ? '黑' : '白') + ' · 对手 KataGo 神经网络（约2段）');
+  if (humanColor == 2) { computerSide = 1; aiMove(); }   // computer (black) moves first
+}
+function passMove() { if (busy) return; goban.pass(); goban.refresh(); aiMove(); }
+function undo2() { if (busy) return; goban.undoMove(); goban.undoMove(); goban.refresh(); }
+
+window.addEventListener('load', function () {
+  makeGoban();
+  setStatus('点击开始 · 你执黑，对手为 KataGo 神经网络（约2段，首手会下载约12MB网络）');
+  // warm up the model in the background so the first move isn't a long wait
+  loadModel().catch(() => {});
+});
+
+function setLevel(v, el){
+  level = v;
+  for (const b of document.querySelectorAll('#segLevel button')) b.classList.toggle('on', b===el);
+  setStatus('难度：' + (v==='dan' ? '最强（约2段）' : '较弱（约6级）') + ' · 下一手生效');
+}
+</script>
+</body>
+</html>

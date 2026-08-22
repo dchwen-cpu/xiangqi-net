@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>立山斋</title>
+<meta name="description" content="立山斋 — 一方书斋，聊寄闲情。文墨、单机棋艺、自制工具与收藏。">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
+<style>
+  :root{
+    --paper:#efe7d3; --paper-lit:#f6f0e0; --paper-panel:#f8f3e6;
+    --ink:#262019; --ink-soft:#5c5344; --ink-faint:#8b8069;
+    --seal:#b23a2c; --seal-deep:#933024; --celadon:#4a7c68;
+    --dust:#b8ab8a; --dust-lit:#d8cca8; --shadow:rgba(45,36,22,.14);
+    --wenkai:"LXGW WenKai Screen","LXGW WenKai",STKaiti,KaiTi,"Kaiti SC",serif;
+    --data:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{
+    font-family:var(--wenkai); color:var(--ink); background:var(--paper);
+    background-image:
+      radial-gradient(circle at 18% 12%,rgba(255,255,255,.35),transparent 45%),
+      radial-gradient(circle at 88% 85%,rgba(120,95,50,.06),transparent 42%);
+    line-height:1.7; -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .num{font-family:var(--data);font-variant-numeric:tabular-nums}
+  a{color:inherit;text-decoration:none}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px clamp(16px,5vw,48px);border-bottom:1px solid rgba(45,36,22,.12);
+  }
+  .brand{display:flex;align-items:center;gap:12px}
+  .seal-mark{
+    width:44px;height:44px;flex:none;border-radius:6px;background:var(--seal);
+    color:var(--paper-lit);display:grid;place-items:center;line-height:1.05;
+    text-align:center;font-size:14px;padding:5px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.25);transform:rotate(-1.5deg);
+  }
+  .brand h1{font-size:20px;margin:0;font-weight:600;letter-spacing:.12em}
+  .brand small{display:block;color:var(--ink-faint);font-size:11px;letter-spacing:.3em;margin-top:1px}
+  header nav{display:flex;gap:20px;font-size:14px;color:var(--ink-soft)}
+  header nav a{border-bottom:1px solid transparent;padding-bottom:2px}
+  header nav a:hover{color:var(--seal);border-color:var(--seal)}
+
+  .hall{text-align:center;padding:clamp(44px,8vw,88px) 20px clamp(20px,4vw,36px);animation:settle .7s ease both}
+  @keyframes settle{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .hall .plaque{display:inline-block;font-size:clamp(40px,8vw,72px);font-weight:600;letter-spacing:.24em;position:relative}
+  .hall .plaque::after{content:"";position:absolute;left:8%;right:8%;bottom:-12px;height:2px;background:linear-gradient(90deg,transparent,var(--seal),transparent)}
+  .hall p{color:var(--ink-soft);font-size:clamp(14px,2vw,17px);margin:26px auto 0;max-width:30em}
+
+  main{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,44px) clamp(16px,5vw,32px) 60px}
+  section{margin-bottom:52px;scroll-margin-top:20px}
+  .sec-label{display:flex;align-items:center;gap:14px;margin-bottom:22px;color:var(--ink-soft);font-size:16px;letter-spacing:.22em}
+  .sec-label .en{font-family:var(--data);font-size:11px;letter-spacing:.2em;color:var(--dust)}
+  .sec-label::after{content:"";flex:1;height:1px;background:rgba(45,36,22,.12)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+  .card{
+    position:relative;background:var(--paper-panel);border:1px solid var(--dust);
+    border-radius:6px;padding:20px;display:flex;gap:15px;align-items:flex-start;
+    transition:transform .18s,box-shadow .18s,border-color .18s;width:100%;text-align:left;color:inherit;
+  }
+  .card.live{cursor:pointer}
+  .card.live:hover{transform:translateY(-4px);box-shadow:0 10px 22px var(--shadow);border-color:var(--celadon)}
+  .card.soon{opacity:.7}
+  .stamp{
+    width:48px;height:48px;flex:none;border-radius:5px;display:grid;place-items:center;font-size:24px;
+    background:var(--seal);color:var(--paper-lit);box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);transition:background .18s;
+  }
+  .card.soon .stamp{background:var(--dust);color:var(--paper-panel)}
+  .card.live:hover .stamp{background:var(--seal-deep)}
+  .card .name{font-size:18px;font-weight:600;margin:0 0 4px}
+  .card .desc{font-size:12.5px;color:var(--ink-faint);line-height:1.5}
+  .card .foot{margin-top:11px;display:flex;gap:10px;align-items:center;font-size:11px}
+  .badge{padding:2px 9px;border-radius:20px;letter-spacing:.05em}
+  .badge.live{background:rgba(74,124,104,.15);color:var(--celadon)}
+  .badge.soon{background:rgba(184,171,138,.25);color:var(--ink-faint)}
+
+  /* 文章列表 */
+  .posts{display:flex;flex-direction:column;gap:2px}
+  .post{
+    display:flex;align-items:baseline;gap:16px;padding:14px 4px;
+    border-bottom:1px dashed var(--dust-lit);transition:.15s;
+  }
+  .post:hover{background:var(--paper-panel);padding-left:12px;padding-right:12px;border-radius:4px}
+  .post .date{font-family:var(--data);font-size:12px;color:var(--ink-faint);flex:none;width:88px}
+  .post .t{font-size:16px}
+  .post .x{font-size:12px;color:var(--ink-faint);margin-left:auto;flex:none}
+  .empty{color:var(--ink-faint);font-size:14px;padding:18px 4px}
+
+  /* 收藏 */
+  .links{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{
+    display:inline-flex;align-items:center;gap:8px;background:var(--paper-panel);
+    border:1px solid var(--dust);border-radius:20px;padding:8px 16px;font-size:14px;transition:.15s;
+  }
+  .chip:hover{border-color:var(--celadon);color:var(--seal)}
+
+  footer{border-top:1px solid rgba(45,36,22,.12);padding:26px 20px;text-align:center;color:var(--ink-faint);font-size:12.5px}
+  footer .seal-text{color:var(--seal);letter-spacing:.1em}
+
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:12px}
+    .grid{grid-template-columns:1fr}
+    .post .x{display:none}
+    .post .date{width:72px;font-size:11px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/">
+    <div class="seal-mark">立山<br>斋</div>
+    <div><h1>立山斋</h1><small>LISHANZHAI</small></div>
+  </a>
+  <nav>
+    <a href="#chess">棋艺</a>
+    <a href="#tools">造物</a>
+    <a href="#writing">文墨</a>
+    <a href="#collect">收藏</a>
+  </nav>
+</header>
+
+<section class="hall">
+  <span class="plaque">立山斋</span>
+  <p>一方书斋，聊寄闲情。落子、造物、记文，皆在此间。</p>
+</section>
+
+<main>
+  <section id="chess">
+    <div class="sec-label">棋艺 · 单机对弈 <span class="en">SOLO</span></div>
+    <div class="grid" id="grid-chess"></div>
+  </section>
+
+  <section id="tools">
+    <div class="sec-label">造物 · 自制工具 <span class="en">TOOLS</span></div>
+    <div class="grid" id="grid-tools"></div>
+  </section>
+
+  <section id="writing">
+    <div class="sec-label">文墨 · 随笔 <span class="en">WRITING</span></div>
+    <div class="posts" id="list-posts"></div>
+  </section>
+
+  <section id="collect">
+    <div class="sec-label">收藏 · 珍藏所得 <span class="en">COLLECTION</span></div>
+    <div class="links" id="list-links"></div>
+  </section>
+</main>
+
+<footer>
+  <div><span class="seal-text">立山斋制作</span> · <span class="num" id="year"></span></div>
+</footer>
+
+<script>
+/* ============================================================
+   立山斋 · 个人站首页
+   —— 纯静态展示；内容都在下面 CONFIG 里，加东西 = 加一行。
+   单机棋艺是客户端应用（引擎在浏览器里跑，不连服务器对弈）。
+   文墨（博客）之后接后端，可在网页里直接写；现在先用静态列表占位。
+   ============================================================ */
+const CONFIG = {
+  // 单机棋：应用在 studio/xiangqi、studio/go 下，客户端引擎、不连服务器
+  chess: [
+    { name:'中国象棋', glyph:'象', status:'live', url:'/xiangqi/',
+      desc:'对弈 Fairy-Stockfish NNUE 引擎，九级可调，离线可玩，古筝相伴。' },
+    { name:'围棋', glyph:'围', status:'live', url:'/go/go.html',
+      desc:'经典 MCTS+RAVE，支持 9 / 13 / 19 路，离线可玩。' },
+    { name:'围棋 · KataGo', glyph:'弈', status:'live', url:'/go/go-katago.html',
+      desc:'神经网络 KataGo，约 2 段棋力，浏览器内运行。' },
+  ],
+  // 自制/收集的工具：每个一个页面，放进 studio/tools 下，填 url
+  tools: [
+    { name:'（待添加）', glyph:'工', status:'soon', url:'',
+      desc:'你收集/自制的创作工具，放进 studio/tools 后在这里列出。' },
+  ],
+  // 文墨：接后端前，先手写几条占位；之后改成从 /api 拉取
+  posts: [
+    // { date:'2026-08-20', title:'开斋记', url:'/p/kai-zhai', words:'约 600 字' },
+  ],
+  // 收藏：外链/资源
+  links: [
+    // { name:'某处好去处', url:'https://...' },
+  ],
+};
+
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function cardHTML(it){
+  const live = it.status==='live' && it.url;
+  const tag = live ? 'a' : 'div';
+  const href = live ? `href="${esc(it.url)}"` : '';
+  return `<${tag} class="card ${live?'live':'soon'}" ${href}>
+    <div class="stamp">${esc(it.glyph||'·')}</div>
+    <div>
+      <div class="name">${esc(it.name)}</div>
+      <div class="desc">${esc(it.desc||'')}</div>
+      <div class="foot"><span class="badge ${live?'live':'soon'}">${live?'可玩':'即将上线'}</span></div>
+    </div>
+  </${tag}>`;
+}
+function renderGrid(id, items){
+  document.getElementById(id).innerHTML = items.map(cardHTML).join('');
+}
+function renderPosts(){
+  const el = document.getElementById('list-posts');
+  if(!CONFIG.posts.length){ el.innerHTML = '<div class="empty">随笔筹备中，敬请期待。</div>'; return; }
+  el.innerHTML = CONFIG.posts.map(p=>`
+    <a class="post" href="${esc(p.url||'#')}">
+      <span class="date">${esc(p.date||'')}</span>
+      <span class="t">${esc(p.title||'')}</span>
+      <span class="x">${esc(p.words||'')}</span>
+    </a>`).join('');
+}
+function renderLinks(){
+  const el = document.getElementById('list-links');
+  if(!CONFIG.links.length){ el.innerHTML = '<div class="empty">收藏整理中。</div>'; return; }
+  el.innerHTML = CONFIG.links.map(l=>`<a class="chip" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
+}
+
+renderGrid('grid-chess', CONFIG.chess);
+renderGrid('grid-tools', CONFIG.tools);
+renderPosts();
+renderLinks();
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
