@@ -4,13 +4,15 @@ const http    = require('http');
 const path    = require('path');
 const { Server } = require('socket.io');
 const { router: authRouter } = require('./auth');   // 认证路由（注册/登录/JWT）
+const dbx = require('./db');                          // 数据库（访问计数等直接查询）
 
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors:{ origin:'*' } });
 app.use(express.json());   // 解析 /auth 等 POST 请求的 JSON body
-// WASM 多线程需要这两个响应头（同源资源不受影响）。只发给象棋棋盘 /xiangqi，
-// 门厅等其它页面不发，避免 COEP:require-corp 挡住 CDN 字体等跨源资源。
+// 只有象棋（Fairy-Stockfish WASM 多线程）需要这两个隔离头，覆盖两个域名下的 /xiangqi：
+// 在线棋盘 + 立山斋单机象棋都靠它跑 SharedArrayBuffer。围棋(纯JS / tfjs-WebGL)、首页、
+// 博客都不需要隔离，也不发——否则 COEP 会挡住围棋的 Google 字体和 CDN 权重。
 app.use((req,res,next)=>{
   if (req.path.startsWith('/xiangqi')) {
     res.setHeader('Cross-Origin-Opener-Policy','same-origin');
@@ -19,7 +21,8 @@ app.use((req,res,next)=>{
   next();
 });
 
-app.use(express.static(path.join(__dirname,'public'), {
+// 两个站共用的静态服务选项（MIME + 缓存策略）
+const staticOpts = {
   etag: true,
   setHeaders: (res, fp) => {
     // 正确的 MIME，否则浏览器拒绝执行/实例化
@@ -38,11 +41,35 @@ app.use(express.static(path.join(__dirname,'public'), {
       res.setHeader('Cache-Control','public, max-age=604800');   // 7 天
     }
   }
-}));
-// 大厅移到 /lobby；根路径 / 交给门厅 public/index.html（express.static 默认发 index.html）
-app.get('/lobby', (_,res) => res.sendFile(path.join(__dirname,'public','lobby.html')));
+};
+
+// 判定：请求来自立山斋个人站域名，还是棋牌室
+function isStudio(req){ return req.hostname.includes('lishanzhai'); }
+
+// 按域名分发到各自的静态根，两站 URL 命名空间彻底隔开、互不串门：
+//   lishanzhai.com  → studio/   （立山斋个人站）
+//   其它（含 chinesechessonline.com、xiangqi-net）→ public/  （棋牌室）
+const gameStatic   = express.static(path.join(__dirname,'public'), staticOpts);
+const studioStatic = express.static(path.join(__dirname,'studio'), staticOpts);
+app.use((req, res, next) => isStudio(req) ? studioStatic(req, res, next) : gameStatic(req, res, next));
+// 大厅移到 /lobby；仅棋牌室域名下发，立山斋站没有大厅
+app.get('/lobby', (req,res,next) => {
+  if (isStudio(req)) return next();
+  res.sendFile(path.join(__dirname,'public','lobby.html'));
+});
 
 app.use('/auth', authRouter);   // /auth/register  /auth/login  /auth/me（同源，无需 CORS）
+
+// 访问计数：门厅每次打开调一次，同访客当天只记一次，返回累计访问数
+app.post('/api/visits', (req, res) => {
+  try {
+    const visitorId = (String(req.body?.visitorId || '').slice(0, 40)) || 'anon';
+    res.json(dbx.recordVisit(visitorId));
+  } catch (e) {
+    console.error('[visits]', e);
+    res.status(500).json({ error: 'visits failed' });
+  }
+});
 
 // 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
 app.get('/engine-check', (_,res)=>{
