@@ -207,13 +207,15 @@ function renderGrid(id, items){
 }
 function renderPosts(){
   const el = document.getElementById('list-posts');
-  if(!CONFIG.posts.length){ el.innerHTML = '<div class="empty">随笔筹备中，敬请期待。</div>'; return; }
-  el.innerHTML = CONFIG.posts.map(p=>`
-    <a class="post" href="${esc(p.url||'#')}">
-      <span class="date">${esc(p.date||'')}</span>
-      <span class="t">${esc(p.title||'')}</span>
-      <span class="x">${esc(p.words||'')}</span>
-    </a>`).join('');
+  fetch('/api/studio/articles').then(r=>r.json()).then(list=>{
+    if(!list.length){ el.innerHTML = '<div class="empty">随笔筹备中，敬请期待。</div>'; return; }
+    el.innerHTML = list.map(p=>`
+      <a class="post" href="/read.html?id=${p.id}">
+        <span class="date">${new Date(p.created_at).toLocaleDateString('zh-CN')}</span>
+        <span class="t">${esc(p.title||'')}</span>
+        <span class="x">${esc(p.excerpt||'')}</span>
+      </a>`).join('');
+  }).catch(()=>{ el.innerHTML = '<div class="empty">随笔筹备中，敬请期待。</div>'; });
 }
 function renderLinks(){
   const el = document.getElementById('list-links');

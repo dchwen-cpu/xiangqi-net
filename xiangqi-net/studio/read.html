@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>立山斋 · 文</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.core.css">
+<style>
+  :root{
+    --paper:#efe7d3; --paper-lit:#f6f0e0; --ink:#262019; --ink-soft:#5c5344;
+    --ink-faint:#8b8069; --seal:#b23a2c; --dust:#b8ab8a;
+    --wenkai:"LXGW WenKai Screen","LXGW WenKai",STKaiti,KaiTi,serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--wenkai);color:var(--ink);background:var(--paper);
+    background-image:radial-gradient(circle at 20% 12%,rgba(255,255,255,.35),transparent 45%);line-height:1.9}
+  a{color:var(--seal);text-decoration:none}
+  header{padding:16px clamp(16px,5vw,40px);border-bottom:1px solid rgba(45,36,22,.12);font-size:14px}
+  article{max-width:720px;margin:0 auto;padding:clamp(28px,5vw,56px) clamp(18px,6vw,32px) 80px}
+  h1.title{font-size:clamp(26px,5vw,38px);font-weight:600;letter-spacing:.03em;margin:0 0 10px;line-height:1.4}
+  .meta{color:var(--ink-faint);font-size:13px;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid rgba(45,36,22,.12)}
+  .meta .seal{color:var(--seal)}
+  .content{font-size:17px}
+  .content h1,.content h2,.content h3{letter-spacing:.03em;margin:1.4em 0 .5em}
+  .content h1{font-size:1.6em} .content h2{font-size:1.35em} .content h3{font-size:1.15em}
+  .content p{margin:0 0 1em}
+  .content blockquote{border-left:3px solid var(--seal);margin:1.2em 0;padding:.4em 1.2em;color:var(--ink-soft);background:rgba(178,58,44,.04)}
+  .content img{max-width:100%;border-radius:6px;margin:1em 0}
+  .content pre{background:#2b2620;color:#f0e9d6;padding:14px 16px;border-radius:6px;overflow:auto;font-size:14px}
+  .content a{border-bottom:1px dotted var(--seal)}
+  .back{margin-top:48px;padding-top:20px;border-top:1px dashed var(--dust)}
+  .state{max-width:720px;margin:0 auto;padding:80px 20px;text-align:center;color:var(--ink-faint)}
+</style>
+</head>
+<body>
+<header><a href="/">← 立山斋</a></header>
+<article id="art"><div class="state">载入中…</div></article>
+
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const id = new URLSearchParams(location.search).get('id');
+const root = document.getElementById('art');
+
+if(!id){ root.innerHTML='<div class="state">没有指定文章。<br><a href="/">返回书斋</a></div>'; }
+else fetch('/api/studio/articles/'+encodeURIComponent(id))
+  .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+  .then(a=>{
+    document.title = a.title + ' · 立山斋';
+    const date = new Date(a.created_at).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
+    // Quill 产出的是 .ql-editor 语义 HTML，套上 ql-editor 类让样式对齐；正文来自站长本人，可信
+    root.innerHTML = `
+      <h1 class="title">${esc(a.title)}</h1>
+      <div class="meta"><span class="seal">${esc(a.author||'立山斋')}</span> · ${date}</div>
+      <div class="content ql-editor">${a.body}</div>
+      <div class="back"><a href="/">← 返回书斋</a></div>`;
+  })
+  .catch(()=>{ root.innerHTML='<div class="state">文章不存在或已删除。<br><a href="/">返回书斋</a></div>'; });
+</script>
+</body>
+</html>
