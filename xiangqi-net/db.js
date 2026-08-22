@@ -65,6 +65,23 @@ CREATE TABLE IF NOT EXISTS forum_replies (
   FOREIGN KEY(post_id)   REFERENCES forum_posts(id),
   FOREIGN KEY(author_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS visits (
+  visitor_id TEXT NOT NULL,
+  day        TEXT NOT NULL,        -- 服务器日期 YYYY-MM-DD
+  PRIMARY KEY (visitor_id, day)    -- 同一访客同一天只记一次
+);
+
+CREATE TABLE IF NOT EXISTS articles (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id  INTEGER NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,          -- 编辑器产出的富文本 HTML（仅站长可写，可信）
+  excerpt    TEXT,                   -- 列表用的纯文字摘要
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(author_id) REFERENCES users(id)
+);
 `);
 
 // ── 定级门槛：对局数不足则棋力显示"未定级" ──
@@ -96,4 +113,43 @@ function publicProfile(u){
   };
 }
 
-module.exports = { db, createUser, findByName, findById, publicProfile, PLACEMENT_GAMES };
+// ── 访问计数 ──
+const visitStmts = {
+  insert: db.prepare(`INSERT OR IGNORE INTO visits (visitor_id, day) VALUES (?, ?)`),
+  total:  db.prepare(`SELECT COUNT(*) AS n FROM visits`),
+  uniq:   db.prepare(`SELECT COUNT(DISTINCT visitor_id) AS n FROM visits`),
+};
+// 记一次访问（同访客同天自动去重），返回累计数据
+function recordVisit(visitorId){
+  const day = new Date().toISOString().slice(0, 10);   // 服务器日期，防客户端改钟
+  visitStmts.insert.run(visitorId, day);
+  return { total: visitStmts.total.get().n, unique: visitStmts.uniq.get().n };
+}
+
+// ── 文章（文墨）──
+const artStmts = {
+  insert: db.prepare(`INSERT INTO articles (author_id,title,body,excerpt,created_at,updated_at)
+                      VALUES (?,?,?,?,?,?)`),
+  update: db.prepare(`UPDATE articles SET title=?, body=?, excerpt=?, updated_at=? WHERE id=?`),
+  del:    db.prepare(`DELETE FROM articles WHERE id=?`),
+  byId:   db.prepare(`SELECT a.*, u.username AS author FROM articles a
+                      JOIN users u ON u.id=a.author_id WHERE a.id=?`),
+  list:   db.prepare(`SELECT id,title,excerpt,created_at FROM articles ORDER BY created_at DESC`),
+};
+function createArticle(authorId, title, body, excerpt){
+  const now = Date.now();
+  const info = artStmts.insert.run(authorId, title, body, excerpt, now, now);
+  return artStmts.byId.get(info.lastInsertRowid);
+}
+function updateArticle(id, title, body, excerpt){
+  const r = artStmts.update.run(title, body, excerpt, Date.now(), id);
+  return r.changes ? artStmts.byId.get(id) : null;
+}
+function deleteArticle(id){ return artStmts.del.run(id).changes > 0; }
+function getArticle(id){ return artStmts.byId.get(id); }
+function listArticles(){ return artStmts.list.all(); }
+
+module.exports = {
+  db, createUser, findByName, findById, publicProfile, recordVisit, PLACEMENT_GAMES,
+  createArticle, updateArticle, deleteArticle, getArticle, listArticles,
+};

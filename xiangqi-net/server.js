@@ -59,6 +59,7 @@ app.get('/lobby', (req,res,next) => {
 });
 
 app.use('/auth', authRouter);   // /auth/register  /auth/login  /auth/me（同源，无需 CORS）
+app.use('/api/studio', require('./studio'));   // 立山斋个人站：文章 API（读公开，写仅站长）
 
 // 访问计数：门厅每次打开调一次，同访客当天只记一次，返回累计访问数
 app.post('/api/visits', (req, res) => {
