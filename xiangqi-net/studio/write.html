@@ -4,16 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>写作 · 立山斋</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <style>
   :root{
     --paper:#efe7d3; --paper-lit:#f6f0e0; --paper-panel:#f8f3e6;
     --ink:#262019; --ink-soft:#5c5344; --ink-faint:#8b8069;
     --seal:#b23a2c; --seal-deep:#933024; --celadon:#4a7c68; --dust:#b8ab8a;
-    --wenkai:"LXGW WenKai Screen","LXGW WenKai",STKaiti,KaiTi,serif;
+    --font:"STKaiti","KaiTi","Kaiti SC","Songti SC",serif;
   }
-  *{box-sizing:border-box} body{margin:0;font-family:var(--wenkai);color:var(--ink);background:var(--paper);line-height:1.7}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--paper);line-height:1.7}
   a{color:var(--seal);text-decoration:none}
   header{display:flex;align-items:center;justify-content:space-between;padding:16px clamp(16px,5vw,40px);border-bottom:1px solid rgba(45,36,22,.12)}
   header .t{font-size:19px;font-weight:600;letter-spacing:.1em}
@@ -32,31 +31,35 @@
   input:focus{outline:none;border-color:var(--celadon)}
   #title{font-size:22px;font-weight:600}
 
-  /* 登录卡 */
   #login{max-width:340px;margin:8vh auto 0;background:var(--paper-panel);border:1px solid var(--dust);border-radius:8px;padding:28px}
   #login h2{margin:0 0 4px;font-size:20px}
   #login .sub{margin:0 0 20px;color:var(--ink-faint);font-size:13px}
 
-  /* 编辑器 */
   #editor-wrap{display:none}
-  .ql-toolbar.ql-snow,.ql-container.ql-snow{border-color:var(--dust)!important}
-  .ql-toolbar.ql-snow{border-radius:6px 6px 0 0;background:var(--paper-panel)}
-  #editor{min-height:44vh;background:var(--paper-lit);border-radius:0 0 6px 6px;font-size:16px}
-  .ql-editor{font-family:var(--wenkai);line-height:1.8}
-  .ql-editor.ql-blank::before{color:var(--ink-faint);font-style:normal}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:4px;background:var(--paper-panel);border:1px solid var(--dust);border-bottom:none;border-radius:6px 6px 0 0;padding:8px}
+  .toolbar button{min-width:34px;height:32px;padding:0 9px;border:1px solid transparent;background:transparent;color:var(--ink);font-family:var(--font);font-size:15px;border-radius:4px;cursor:pointer}
+  .toolbar button:hover{background:var(--paper)}
+  .toolbar button:active{background:var(--dust)}
+  .toolbar .sep{width:1px;background:var(--dust);margin:2px 4px}
+  .toolbar b{font-weight:700}
+
+  #editor{min-height:46vh;background:var(--paper-lit);border:1px solid var(--dust);border-radius:0 0 6px 6px;padding:20px 22px;font-size:17px;line-height:1.9;outline:none;overflow-y:auto}
+  #editor:empty::before{content:attr(data-ph);color:var(--ink-faint)}
+  #editor h1{font-size:1.6em;margin:.6em 0 .3em} #editor h2{font-size:1.35em;margin:.6em 0 .3em} #editor h3{font-size:1.15em;margin:.6em 0 .3em}
+  #editor blockquote{border-left:3px solid var(--seal);margin:1em 0;padding:.3em 1em;color:var(--ink-soft);background:rgba(178,58,44,.05)}
+  #editor img{max-width:100%;border-radius:6px}
+  #editor a{color:var(--seal);text-decoration:underline}
+
   .bar{display:flex;gap:12px;align-items:center;margin-top:18px}
   .bar .msg{font-size:13px;color:var(--celadon)}
   .bar .msg.err{color:var(--seal-deep)}
 
-  /* 已有文章列表 */
   #mine{margin-top:40px;border-top:1px dashed var(--dust);padding-top:20px}
   #mine h3{font-size:15px;color:var(--ink-soft);letter-spacing:.15em;margin:0 0 12px}
   .row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px dashed var(--dust)}
-  .row .rt{flex:1;font-size:15px}
-  .row .rd{font-size:12px;color:var(--ink-faint)}
-  .row a{font-size:13px;cursor:pointer}
-  .row .del{color:var(--ink-faint)}
-  .row .del:hover{color:var(--seal)}
+  .row .rt{flex:1;font-size:15px} .row .rd{font-size:12px;color:var(--ink-faint)}
+  .row a{font-size:13px;cursor:pointer} .row .del{color:var(--ink-faint)} .row .del:hover{color:var(--seal)}
 </style>
 </head>
 <body>
@@ -66,7 +69,6 @@
 </header>
 
 <main>
-  <!-- 登录卡 -->
   <div id="login">
     <h2>站长登录</h2>
     <p class="sub">用你注册的账号登录后即可写作</p>
@@ -75,10 +77,30 @@
     <div class="bar"><button class="btn" id="loginBtn">登录</button><span class="msg" id="lmsg"></span></div>
   </div>
 
-  <!-- 编辑器 -->
   <div id="editor-wrap">
     <div class="field"><label>标题</label><input id="title" type="text" placeholder="文章标题…"></div>
-    <div class="field"><label>正文（像 Word 一样直接排版）</label><div id="editor"></div></div>
+    <div class="field">
+      <label>正文（像 Word 一样直接排版）</label>
+      <div class="toolbar" id="toolbar">
+        <button data-cmd="formatBlock" data-val="h1" title="大标题">H1</button>
+        <button data-cmd="formatBlock" data-val="h2" title="标题">H2</button>
+        <button data-cmd="formatBlock" data-val="h3" title="小标题">H3</button>
+        <button data-cmd="formatBlock" data-val="p" title="正文">正文</button>
+        <span class="sep"></span>
+        <button data-cmd="bold" title="加粗"><b>B</b></button>
+        <button data-cmd="italic" title="斜体"><i>I</i></button>
+        <button data-cmd="underline" title="下划线"><u>U</u></button>
+        <span class="sep"></span>
+        <button data-cmd="insertUnorderedList" title="项目符号">• 列表</button>
+        <button data-cmd="insertOrderedList" title="编号列表">1. 列表</button>
+        <button data-cmd="formatBlock" data-val="blockquote" title="引用">❝ 引用</button>
+        <span class="sep"></span>
+        <button id="linkBtn" title="插入链接">🔗 链接</button>
+        <button id="imgBtn" title="插入图片链接">🖼 图片</button>
+        <button data-cmd="removeFormat" title="清除格式">清除</button>
+      </div>
+      <div id="editor" contenteditable="true" data-ph="在此写作…"></div>
+    </div>
     <div class="bar">
       <button class="btn" id="publishBtn">发布</button>
       <button class="btn ghost" id="newBtn">清空 / 新建</button>
@@ -88,103 +110,95 @@
   </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
-const store = (()=>{const m={};let ok=true;try{localStorage.setItem('__t','1');localStorage.removeItem('__t')}catch(e){ok=false}
-  return {get:k=>{try{return ok?localStorage.getItem(k):(m[k]??null)}catch(e){return m[k]??null}},
-          set:(k,v)=>{try{ok?localStorage.setItem(k,v):(m[k]=v)}catch(e){m[k]=v}},
-          del:k=>{try{ok?localStorage.removeItem(k):(delete m[k])}catch(e){delete m[k]}}};})();
+const store=(()=>{const m={};let ok=true;try{localStorage.setItem('__t','1');localStorage.removeItem('__t')}catch(e){ok=false}
+  return{get:k=>{try{return ok?localStorage.getItem(k):(m[k]??null)}catch(e){return m[k]??null}},
+         set:(k,v)=>{try{ok?localStorage.setItem(k,v):(m[k]=v)}catch(e){m[k]=v}},
+         del:k=>{try{ok?localStorage.removeItem(k):(delete m[k])}catch(e){delete m[k]}}};})();
 const TOK='lsz.token';
-let quill=null, editingId=null;
-
+let editingId=null;
 const $=id=>document.getElementById(id);
-function token(){ return store.get(TOK); }
-function authHead(){ return { 'Authorization':'Bearer '+token() }; }
+const token=()=>store.get(TOK);
+const authHead=()=>({'Authorization':'Bearer '+token()});
+const ed=$('editor');
 
 async function login(){
-  const u=$('lu').value.trim(), p=$('lp').value;
-  if(!u||!p){ msg('lmsg','请输入用户名和密码',true); return; }
-  $('loginBtn').disabled=true; msg('lmsg','登录中…');
+  const u=$('lu').value.trim(),p=$('lp').value;
+  if(!u||!p){msg('lmsg','请输入用户名和密码',true);return;}
+  $('loginBtn').disabled=true;msg('lmsg','登录中…');
   try{
     const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d=await r.json();
-    if(!r.ok){ msg('lmsg',d.error||'登录失败',true); $('loginBtn').disabled=false; return; }
-    store.set(TOK,d.token); enterEditor();
-  }catch(e){ msg('lmsg','无法连接服务器',true); $('loginBtn').disabled=false; }
+    if(!r.ok){msg('lmsg',d.error||'登录失败',true);$('loginBtn').disabled=false;return;}
+    store.set(TOK,d.token);enterEditor();
+  }catch(e){msg('lmsg','无法连接服务器',true);$('loginBtn').disabled=false;}
 }
 
 async function enterEditor(){
-  // 校验是不是站长
   let who;
-  try{ const r=await fetch('/api/studio/whoami',{headers:authHead()}); who=await r.json();
-       if(!r.ok) throw 0; }catch(e){ store.del(TOK); $('login').style.display=''; msg('lmsg','登录已过期，请重新登录',true); return; }
-  if(!who.isOwner){ msg('lmsg','此账号不是站长，无法写作',true); store.del(TOK); return; }
-  $('login').style.display='none';
-  $('editor-wrap').style.display='';
-  $('whoami').textContent='· '+who.username;
-  if(!quill){
-    quill=new Quill('#editor',{theme:'snow',placeholder:'在此写作…',
-      modules:{toolbar:[[{header:[1,2,3,false]}],['bold','italic','underline','strike'],
-        [{list:'ordered'},{list:'bullet'}],['blockquote','code-block'],['link','image'],[{align:[]}],['clean']]}});
-  }
+  try{const r=await fetch('/api/studio/whoami',{headers:authHead()});who=await r.json();if(!r.ok)throw 0;}
+  catch(e){store.del(TOK);$('login').style.display='';msg('lmsg','登录已过期，请重新登录',true);return;}
+  if(!who.isOwner){msg('lmsg','此账号（'+who.username+'）不是站长',true);store.del(TOK);return;}
+  $('login').style.display='none';$('editor-wrap').style.display='';$('whoami').textContent='· '+who.username;
   loadMine();
 }
+
+$('toolbar').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn||btn.id==='linkBtn'||btn.id==='imgBtn')return;
+  e.preventDefault(); ed.focus();
+  const cmd=btn.dataset.cmd, val=btn.dataset.val;
+  if(cmd==='formatBlock') document.execCommand('formatBlock',false,val);
+  else document.execCommand(cmd,false,null);
+});
+$('linkBtn').addEventListener('click',e=>{e.preventDefault();ed.focus();const u=prompt('链接地址（http…）');if(u)document.execCommand('createLink',false,u);});
+$('imgBtn').addEventListener('click',e=>{e.preventDefault();ed.focus();const u=prompt('图片地址（http…）');if(u)document.execCommand('insertImage',false,u);});
 
 async function publish(){
   const title=$('title').value.trim();
-  const body=quill.root.innerHTML;
-  const text=quill.getText().trim();
-  if(!title){ msg('pmsg','标题不能为空',true); return; }
-  if(!text){ msg('pmsg','正文不能为空',true); return; }
+  const body=ed.innerHTML;
+  const text=ed.innerText.trim();
+  if(!title){msg('pmsg','标题不能为空',true);return;}
+  if(!text){msg('pmsg','正文不能为空',true);return;}
   const excerpt=text.slice(0,120);
-  $('publishBtn').disabled=true; msg('pmsg','发布中…');
-  const url = editingId ? '/api/studio/articles/'+editingId : '/api/studio/articles';
-  const method = editingId ? 'PUT' : 'POST';
+  $('publishBtn').disabled=true;msg('pmsg','发布中…');
+  const url=editingId?'/api/studio/articles/'+editingId:'/api/studio/articles';
+  const method=editingId?'PUT':'POST';
   try{
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...authHead()},body:JSON.stringify({title,body,excerpt})});
     const d=await r.json();
-    if(!r.ok){ msg('pmsg',d.error||'发布失败',true); $('publishBtn').disabled=false; return; }
-    msg('pmsg', editingId?'已更新 ✓':'已发布 ✓'); $('publishBtn').disabled=false;
-    newDraft(); loadMine();
-  }catch(e){ msg('pmsg','无法连接服务器',true); $('publishBtn').disabled=false; }
+    if(!r.ok){msg('pmsg',d.error||'发布失败',true);$('publishBtn').disabled=false;return;}
+    msg('pmsg',editingId?'已更新 ✓':'已发布 ✓');$('publishBtn').disabled=false;newDraft();loadMine();
+  }catch(e){msg('pmsg','无法连接服务器',true);$('publishBtn').disabled=false;}
 }
-
-function newDraft(){ editingId=null; $('title').value=''; if(quill) quill.setContents([]); $('publishBtn').textContent='发布'; }
+function newDraft(){editingId=null;$('title').value='';ed.innerHTML='';$('publishBtn').textContent='发布';}
 
 async function loadMine(){
   try{
-    const r=await fetch('/api/studio/articles'); const list=await r.json();
-    $('mine-list').innerHTML = list.length ? list.map(a=>`
-      <div class="row">
-        <div class="rt">${escapeHtml(a.title)}</div>
+    const r=await fetch('/api/studio/articles');const list=await r.json();
+    $('mine-list').innerHTML=list.length?list.map(a=>`
+      <div class="row"><div class="rt">${esc(a.title)}</div>
         <span class="rd">${new Date(a.created_at).toLocaleDateString('zh-CN')}</span>
-        <a onclick="editArticle(${a.id})">编辑</a>
-        <a class="del" onclick="delArticle(${a.id})">删除</a>
-      </div>`).join('') : '<div style="color:var(--ink-faint);font-size:13px">还没有文章。</div>';
+        <a onclick="editArticle(${a.id})">编辑</a><a class="del" onclick="delArticle(${a.id})">删除</a></div>`).join('')
+      :'<div style="color:var(--ink-faint);font-size:13px">还没有文章。</div>';
   }catch(e){}
 }
 async function editArticle(id){
-  const r=await fetch('/api/studio/articles/'+id); const a=await r.json();
-  editingId=id; $('title').value=a.title; quill.root.innerHTML=a.body;
-  $('publishBtn').textContent='更新'; window.scrollTo({top:0,behavior:'smooth'});
+  const r=await fetch('/api/studio/articles/'+id);const a=await r.json();
+  editingId=id;$('title').value=a.title;ed.innerHTML=a.body;$('publishBtn').textContent='更新';window.scrollTo({top:0,behavior:'smooth'});
 }
 async function delArticle(id){
-  if(!confirm('确定删除这篇文章？')) return;
+  if(!confirm('确定删除这篇文章？'))return;
   await fetch('/api/studio/articles/'+id,{method:'DELETE',headers:authHead()});
-  if(editingId===id) newDraft();
-  loadMine();
+  if(editingId===id)newDraft();loadMine();
 }
-
-function msg(id,t,err){ const e=$(id); e.textContent=t; e.className='msg'+(err?' err':''); }
-function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function msg(id,t,err){const e=$(id);e.textContent=t;e.className='msg'+(err?' err':'');}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
 $('loginBtn').addEventListener('click',login);
 $('publishBtn').addEventListener('click',publish);
 $('newBtn').addEventListener('click',newDraft);
 $('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-
-// 已登录直接进编辑器
-if(token()) enterEditor();
+if(token())enterEditor();
 </script>
 </body>
 </html>

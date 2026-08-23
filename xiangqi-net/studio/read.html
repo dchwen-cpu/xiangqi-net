@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>立山斋 · 文</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.core.css">
 <style>
   :root{
     --paper:#efe7d3; --paper-lit:#f6f0e0; --ink:#262019; --ink-soft:#5c5344;
@@ -37,7 +36,6 @@
 <header><a href="/">← 立山斋</a></header>
 <article id="art"><div class="state">载入中…</div></article>
 
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 const id = new URLSearchParams(location.search).get('id');
@@ -53,7 +51,7 @@ else fetch('/api/studio/articles/'+encodeURIComponent(id))
     root.innerHTML = `
       <h1 class="title">${esc(a.title)}</h1>
       <div class="meta"><span class="seal">${esc(a.author||'立山斋')}</span> · ${date}</div>
-      <div class="content ql-editor">${a.body}</div>
+      <div class="content">${a.body}</div>
       <div class="back"><a href="/">← 返回书斋</a></div>`;
   })
   .catch(()=>{ root.innerHTML='<div class="state">文章不存在或已删除。<br><a href="/">返回书斋</a></div>'; });
