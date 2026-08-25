@@ -39,9 +39,13 @@
   }
   .brand h1{font-size:20px;margin:0;font-weight:600;letter-spacing:.12em}
   .brand small{display:block;color:var(--ink-faint);font-size:11px;letter-spacing:.3em;margin-top:1px}
-  header nav{display:flex;gap:20px;font-size:14px;color:var(--ink-soft)}
+header nav{display:flex;gap:20px;font-size:14px;color:var(--ink-soft);align-items:center}
   header nav a{border-bottom:1px solid transparent;padding-bottom:2px}
   header nav a:hover{color:var(--seal);border-color:var(--seal)}
+  .btn-sm{border:1px solid var(--seal);color:var(--seal);background:transparent;padding:6px 14px;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer;text-decoration:none}
+  .btn-sm:hover{background:var(--seal);color:var(--paper-lit)}
+  .btn-sm.solid{background:var(--seal);color:var(--paper-lit)}
+  .btn-sm.solid:hover{background:var(--seal-deep)}
 
   .hall{text-align:center;padding:clamp(44px,8vw,88px) 20px clamp(20px,4vw,36px);animation:settle .7s ease both}
   @keyframes settle{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -121,6 +125,7 @@
     <a href="#tools">造物</a>
     <a href="#writing">文墨</a>
     <a href="#collect">收藏</a>
+    <span id="nav-auth"></span>
   </nav>
 </header>
 
@@ -141,7 +146,7 @@
   </section>
 
   <section id="writing">
-    <div class="sec-label">文墨 · 随笔 <span class="en">WRITING</span></div>
+    <div class="sec-label">文墨 · 随笔 <span class="en">WRITING</span> <span id="write-btn"></span></div>
     <div class="posts" id="list-posts"></div>
   </section>
 
@@ -228,6 +233,44 @@ renderGrid('grid-tools', CONFIG.tools);
 renderPosts();
 renderLinks();
 document.getElementById('year').textContent = new Date().getFullYear();
+
+/* ── 登录状态 & 站长入口 ── */
+(function(){
+  function getTok(){ try{ return localStorage.getItem('lsz.token'); }catch(e){ return null; } }
+  function delTok(){ try{ localStorage.removeItem('lsz.token'); }catch(e){} }
+
+  var navAuth   = document.getElementById('nav-auth');
+  var writeBtn  = document.getElementById('write-btn');
+
+  function showGuest(){
+    navAuth.innerHTML = '<a href="/write.html" style="color:var(--seal);border-bottom:none">站长登录</a>';
+    writeBtn.innerHTML = '';
+  }
+  function showOwner(name){
+    navAuth.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-faint)">'+ name +
+      ' <a onclick="signout()" style="cursor:pointer;color:var(--seal)">退出</a></span>';
+    writeBtn.innerHTML =
+      '<a href="/write.html" class="btn-sm solid" style="margin-left:12px;font-size:12px">＋ 写文章</a>';
+  }
+  window.signout = function(){
+    delTok();
+    navAuth.innerHTML = '<a href="/write.html" style="color:var(--seal);border-bottom:none">站长登录</a>';
+    writeBtn.innerHTML = '';
+  };
+
+  var t = getTok();
+  if(!t){ showGuest(); return; }
+
+  // 有令牌：静默验证是否站长
+  fetch('/api/studio/whoami', { headers:{ 'Authorization':'Bearer '+t } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.isOwner) showOwner(d.username);
+      else showGuest();
+    })
+    .catch(function(){ showGuest(); });
+})();
 </script>
 </body>
 </html>
