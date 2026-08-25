@@ -222,10 +222,84 @@ function renderPosts(){
       </a>`).join('');
   }).catch(()=>{ el.innerHTML = '<div class="empty">随笔筹备中，敬请期待。</div>'; });
 }
+/* ── 收藏（从后端拉，站长可添加）── */
 function renderLinks(){
-  const el = document.getElementById('list-links');
-  if(!CONFIG.links.length){ el.innerHTML = '<div class="empty">收藏整理中。</div>'; return; }
-  el.innerHTML = CONFIG.links.map(l=>`<a class="chip" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
+  var el = document.getElementById('list-links');
+  fetch('/api/studio/collections')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data.list||!data.list.length){
+        el.innerHTML='<div class="empty">收藏整理中。</div>'; return;
+      }
+      // 按分类分组展示
+      var html='';
+      data.tags.forEach(function(tag){
+        var items = data.groups[tag]||[];
+        html += '<div style="margin-bottom:20px">';
+        html += '<div style="font-size:12px;color:var(--ink-faint);letter-spacing:.2em;margin-bottom:8px">'+esc(tag)+'</div>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+        items.forEach(function(c){
+          html += '<a class="chip" href="'+esc(c.url)+'" target="_blank" rel="noopener" title="'+esc(c.note||c.title)+'">';
+          html += esc(c.title);
+          html += '</a>';
+        });
+        html += '</div></div>';
+      });
+      el.innerHTML = html;
+    })
+    .catch(function(){ el.innerHTML='<div class="empty">收藏载入失败。</div>'; });
+}
+
+/* ── 站长添加收藏面板 ── */
+function setupCollectPanel(isOwner){
+  if(!isOwner) return;
+  var sec = document.getElementById('collect');
+  // 在标题旁加「＋ 添加」按钮
+  var label = sec.querySelector('.sec-label');
+  var addBtn = document.createElement('button');
+  addBtn.textContent='＋ 添加';
+  addBtn.className='btn-sm solid';
+  addBtn.style.cssText='margin-left:12px;font-size:12px';
+  addBtn.onclick=function(){ panel.style.display=panel.style.display?'':''; };
+  label.appendChild(addBtn);
+
+  // 添加表单
+  var panel = document.createElement('div');
+  panel.style.cssText='background:var(--paper-panel);border:1px solid var(--dust);border-radius:6px;padding:16px;margin-bottom:16px;display:none';
+  panel.innerHTML=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
+    '<div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">链接（必填）</div>'+
+    '<input id="c-url" type="url" placeholder="https://…" style="width:100%;padding:8px 10px;font-family:inherit;font-size:14px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)"></div>'+
+    '<div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">标题（必填）</div>'+
+    '<input id="c-title" type="text" placeholder="网站名称" style="width:100%;padding:8px 10px;font-family:inherit;font-size:14px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)"></div>'+
+    '<div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">分类标签</div>'+
+    '<input id="c-tag" type="text" placeholder="工具 / 参考 / 灵感…" style="width:100%;padding:8px 10px;font-family:inherit;font-size:14px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)"></div>'+
+    '<div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">备注（可选）</div>'+
+    '<input id="c-note" type="text" placeholder="一句话说明" maxlength="100" style="width:100%;padding:8px 10px;font-family:inherit;font-size:14px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)"></div>'+
+    '</div>'+
+    '<button id="c-submit" class="btn-sm solid" style="font-size:14px;padding:8px 18px">保存</button>'+
+    '<span id="c-msg" style="font-size:13px;margin-left:10px;color:var(--celadon)"></span>';
+  sec.insertBefore(panel, document.getElementById('list-links'));
+
+  document.getElementById('c-submit').onclick=function(){
+    var url=$('c-url').value.trim(), title=$('c-title').value.trim();
+    var tag=$('c-tag').value.trim()||'其它', note=$('c-note').value.trim();
+    var msg=document.getElementById('c-msg');
+    if(!url){msg.textContent='链接不能为空';msg.style.color='var(--seal-deep)';return;}
+    if(!title){msg.textContent='标题不能为空';msg.style.color='var(--seal-deep)';return;}
+    msg.textContent='保存中…';msg.style.color='var(--ink-faint)';
+    fetch('/api/studio/collections',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('lsz.token')},
+      body:JSON.stringify({url:url,title:title,note:note,tag:tag})
+    }).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(x){
+        if(!x.ok){msg.textContent=x.d.error||'保存失败';msg.style.color='var(--seal-deep)';return;}
+        msg.textContent='已添加 ✓';msg.style.color='var(--celadon)';
+        document.getElementById('c-url').value='';document.getElementById('c-title').value='';
+        document.getElementById('c-tag').value='';document.getElementById('c-note').value='';
+        renderLinks();
+      }).catch(function(){msg.textContent='无法连接服务器';msg.style.color='var(--seal-deep)';});
+  };
 }
 
 renderGrid('grid-chess', CONFIG.chess);
@@ -245,6 +319,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
   function showGuest(){
     navAuth.innerHTML = '<a href="/write.html" style="color:var(--seal);border-bottom:none">站长登录</a>';
     writeBtn.innerHTML = '';
+    setupCollectPanel(false);
   }
   function showOwner(name){
     navAuth.innerHTML =
@@ -252,6 +327,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
       ' <a onclick="signout()" style="cursor:pointer;color:var(--seal)">退出</a></span>';
     writeBtn.innerHTML =
       '<a href="/write.html" class="btn-sm solid" style="margin-left:12px;font-size:12px">＋ 写文章</a>';
+    setupCollectPanel(true);
   }
   window.signout = function(){
     delTok();
