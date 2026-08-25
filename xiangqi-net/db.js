@@ -93,6 +93,15 @@ CREATE TABLE IF NOT EXISTS comments (
   FOREIGN KEY(article_id) REFERENCES articles(id),
   FOREIGN KEY(user_id)    REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS collections (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  url        TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  note       TEXT NOT NULL DEFAULT '',    -- 简短备注
+  tag        TEXT NOT NULL DEFAULT '其它', -- 分类标签
+  created_at INTEGER NOT NULL
+);
 `);
 
 // ── 定级门槛：对局数不足则棋力显示"未定级" ──
@@ -176,8 +185,25 @@ function addComment(articleId, nickname, userId, body){
 function listComments(articleId){ return cmtStmts.list.all(articleId); }
 function deleteComment(id){ return cmtStmts.del.run(id).changes > 0; }
 
+// ── 收藏 ──
+const colStmts = {
+  insert: db.prepare(`INSERT INTO collections (url,title,note,tag,created_at) VALUES (?,?,?,?,?)`),
+  list:   db.prepare(`SELECT * FROM collections ORDER BY tag ASC, created_at DESC`),
+  del:    db.prepare(`DELETE FROM collections WHERE id=?`),
+  byId:   db.prepare(`SELECT * FROM collections WHERE id=?`),
+  tags:   db.prepare(`SELECT DISTINCT tag FROM collections ORDER BY tag ASC`),
+};
+function addCollection(url, title, note, tag){
+  const info = colStmts.insert.run(url, title, note||'', tag||'其它', Date.now());
+  return colStmts.byId.get(info.lastInsertRowid);
+}
+function listCollections(){ return colStmts.list.all(); }
+function deleteCollection(id){ return colStmts.del.run(id).changes > 0; }
+function listTags(){ return colStmts.tags.all().map(r=>r.tag); }
+
 module.exports = {
   db, createUser, findByName, findById, publicProfile, recordVisit, PLACEMENT_GAMES,
   createArticle, updateArticle, deleteArticle, getArticle, listArticles,
   addComment, listComments, deleteComment,
+  addCollection, listCollections, deleteCollection, listTags,
 };

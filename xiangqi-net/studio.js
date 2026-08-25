@@ -100,4 +100,35 @@ router.delete('/comments/:id', authRequired, ownerOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── 收藏 ──
+
+// 列出所有收藏（公开）
+router.get('/collections', (_req, res) => {
+  const list = dbx.listCollections();
+  // 按 tag 分组
+  const groups = {};
+  list.forEach(c => {
+    if (!groups[c.tag]) groups[c.tag] = [];
+    groups[c.tag].push(c);
+  });
+  res.json({ list, groups, tags: dbx.listTags() });
+});
+
+// 添加收藏（仅站长）
+router.post('/collections', authRequired, ownerOnly, (req, res) => {
+  const url   = String(req.body?.url   || '').trim();
+  const title = String(req.body?.title || '').trim();
+  const note  = String(req.body?.note  || '').trim().slice(0, 100);
+  const tag   = String(req.body?.tag   || '其它').trim().slice(0, 20);
+  if (!url)   return res.status(400).json({ error: '链接不能为空' });
+  if (!title) return res.status(400).json({ error: '标题不能为空' });
+  res.json(dbx.addCollection(url, title, note, tag));
+});
+
+// 删除收藏（仅站长）
+router.delete('/collections/:id', authRequired, ownerOnly, (req, res) => {
+  dbx.deleteCollection(Number(req.params.id));
+  res.json({ ok: true });
+});
+
 module.exports = router;
