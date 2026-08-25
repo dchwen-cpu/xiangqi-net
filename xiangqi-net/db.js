@@ -76,11 +76,22 @@ CREATE TABLE IF NOT EXISTS articles (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   author_id  INTEGER NOT NULL,
   title      TEXT NOT NULL,
-  body       TEXT NOT NULL,          -- 编辑器产出的富文本 HTML（仅站长可写，可信）
-  excerpt    TEXT,                   -- 列表用的纯文字摘要
+  body       TEXT NOT NULL,
+  excerpt    TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY(author_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS comments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL,
+  nickname   TEXT NOT NULL,              -- 访客填的昵称，或注册用户的用户名
+  user_id    INTEGER,                    -- 注册用户留言时记录 id，访客为 NULL
+  body       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY(article_id) REFERENCES articles(id),
+  FOREIGN KEY(user_id)    REFERENCES users(id)
 );
 `);
 
@@ -149,7 +160,24 @@ function deleteArticle(id){ return artStmts.del.run(id).changes > 0; }
 function getArticle(id){ return artStmts.byId.get(id); }
 function listArticles(){ return artStmts.list.all(); }
 
+// ── 留言 ──
+const cmtStmts = {
+  insert: db.prepare(`INSERT INTO comments (article_id,nickname,user_id,body,created_at)
+                      VALUES (?,?,?,?,?)`),
+  list:   db.prepare(`SELECT id,nickname,user_id,body,created_at FROM comments
+                      WHERE article_id=? ORDER BY created_at ASC`),
+  del:    db.prepare(`DELETE FROM comments WHERE id=?`),
+  byId:   db.prepare(`SELECT * FROM comments WHERE id=?`),
+};
+function addComment(articleId, nickname, userId, body){
+  const info = cmtStmts.insert.run(articleId, nickname, userId||null, body, Date.now());
+  return cmtStmts.byId.get(info.lastInsertRowid);
+}
+function listComments(articleId){ return cmtStmts.list.all(articleId); }
+function deleteComment(id){ return cmtStmts.del.run(id).changes > 0; }
+
 module.exports = {
   db, createUser, findByName, findById, publicProfile, recordVisit, PLACEMENT_GAMES,
   createArticle, updateArticle, deleteArticle, getArticle, listArticles,
+  addComment, listComments, deleteComment,
 };

@@ -60,4 +60,44 @@ router.delete('/articles/:id', authRequired, ownerOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── 留言 ──
+
+// 列出某篇文章的留言（公开）
+router.get('/articles/:id/comments', (req, res) => {
+  const list = dbx.listComments(Number(req.params.id));
+  res.json(list);
+});
+
+// 发留言（访客 + 注册用户都可以）
+router.post('/articles/:id/comments', (req, res) => {
+  const articleId = Number(req.params.id);
+  const art = dbx.getArticle(articleId);
+  if (!art) return res.status(404).json({ error: '文章不存在' });
+
+  // 注册用户：从 JWT 取用户名；访客：用提交的 nickname
+  let nickname, userId = null;
+  const tok = (req.headers.authorization||'').replace('Bearer ','').trim();
+  if (tok) {
+    try {
+      const payload = require('jsonwebtoken').verify(tok, process.env.JWT_SECRET);
+      nickname = payload.username;
+      userId   = payload.id;
+    } catch(e) {}
+  }
+  if (!nickname) nickname = String(req.body?.nickname||'').trim().slice(0,30);
+  if (!nickname) return res.status(400).json({ error: '请填写昵称' });
+
+  const body = String(req.body?.body||'').trim();
+  if (!body)           return res.status(400).json({ error: '留言内容不能为空' });
+  if (body.length>500) return res.status(400).json({ error: '留言不超过 500 字' });
+
+  res.json(dbx.addComment(articleId, nickname, userId, body));
+});
+
+// 删除留言（仅站长）
+router.delete('/comments/:id', authRequired, ownerOnly, (req, res) => {
+  dbx.deleteComment(Number(req.params.id));
+  res.json({ ok: true });
+});
+
 module.exports = router;
