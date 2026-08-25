@@ -18,48 +18,29 @@
   header .t{font-size:19px;font-weight:600;letter-spacing:.1em}
   header .who{font-size:13px;color:var(--ink-faint)}
   main{max-width:820px;margin:0 auto;padding:clamp(20px,4vw,40px) clamp(16px,5vw,28px) 80px}
-
-  .btn{border:1px solid var(--seal);background:var(--seal);color:var(--paper-lit);padding:9px 20px;border-radius:4px;font-family:inherit;font-size:15px;cursor:pointer;transition:.15s}
+  .btn{border:1px solid var(--seal);background:var(--seal);color:var(--paper-lit);padding:9px 20px;border-radius:4px;font-family:inherit;font-size:15px;cursor:pointer}
   .btn:hover{background:var(--seal-deep)}
   .btn.ghost{background:transparent;color:var(--seal)}
-  .btn.ghost:hover{background:rgba(178,58,44,.08)}
-  .btn:disabled{opacity:.6;cursor:default}
-
   .field{margin-bottom:16px}
   .field label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:6px}
-  input[type=text],input[type=password]{width:100%;padding:11px 13px;font-family:inherit;font-size:16px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)}
+  input{width:100%;padding:11px 13px;font-family:inherit;font-size:16px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)}
   input:focus{outline:none;border-color:var(--celadon)}
   #title{font-size:22px;font-weight:600}
-
-  #login{max-width:340px;margin:8vh auto 0;background:var(--paper-panel);border:1px solid var(--dust);border-radius:8px;padding:28px}
-  #login h2{margin:0 0 4px;font-size:20px}
-  #login .sub{margin:0 0 20px;color:var(--ink-faint);font-size:13px}
-
-  #editor-wrap{display:none}
-
+  #status{margin:0 0 14px;font-size:13px;color:var(--ink-faint);min-height:18px}
+  #status.err{color:var(--seal-deep)} #status.ok{color:var(--celadon)}
   .toolbar{display:flex;flex-wrap:wrap;gap:4px;background:var(--paper-panel);border:1px solid var(--dust);border-bottom:none;border-radius:6px 6px 0 0;padding:8px}
   .toolbar button{min-width:34px;height:32px;padding:0 9px;border:1px solid transparent;background:transparent;color:var(--ink);font-family:var(--font);font-size:15px;border-radius:4px;cursor:pointer}
   .toolbar button:hover{background:var(--paper)}
-  .toolbar button:active{background:var(--dust)}
   .toolbar .sep{width:1px;background:var(--dust);margin:2px 4px}
-  .toolbar b{font-weight:700}
-
-  #editor{min-height:46vh;background:var(--paper-lit);border:1px solid var(--dust);border-radius:0 0 6px 6px;padding:20px 22px;font-size:17px;line-height:1.9;outline:none;overflow-y:auto}
+  #editor{min-height:44vh;background:var(--paper-lit);border:1px solid var(--dust);border-radius:0 0 6px 6px;padding:20px 22px;font-size:17px;line-height:1.9;outline:none;overflow-y:auto}
   #editor:empty::before{content:attr(data-ph);color:var(--ink-faint)}
-  #editor h1{font-size:1.6em;margin:.6em 0 .3em} #editor h2{font-size:1.35em;margin:.6em 0 .3em} #editor h3{font-size:1.15em;margin:.6em 0 .3em}
-  #editor blockquote{border-left:3px solid var(--seal);margin:1em 0;padding:.3em 1em;color:var(--ink-soft);background:rgba(178,58,44,.05)}
-  #editor img{max-width:100%;border-radius:6px}
-  #editor a{color:var(--seal);text-decoration:underline}
-
+  #editor h1{font-size:1.6em} #editor h2{font-size:1.35em} #editor h3{font-size:1.15em}
+  #editor blockquote{border-left:3px solid var(--seal);margin:1em 0;padding:.3em 1em;color:var(--ink-soft)}
   .bar{display:flex;gap:12px;align-items:center;margin-top:18px}
-  .bar .msg{font-size:13px;color:var(--celadon)}
-  .bar .msg.err{color:var(--seal-deep)}
-
-  #mine{margin-top:40px;border-top:1px dashed var(--dust);padding-top:20px}
-  #mine h3{font-size:15px;color:var(--ink-soft);letter-spacing:.15em;margin:0 0 12px}
-  .row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px dashed var(--dust)}
-  .row .rt{flex:1;font-size:15px} .row .rd{font-size:12px;color:var(--ink-faint)}
-  .row a{font-size:13px;cursor:pointer} .row .del{color:var(--ink-faint)} .row .del:hover{color:var(--seal)}
+  #mine{margin-top:36px;border-top:1px dashed var(--dust);padding-top:18px}
+  #mine h3{font-size:15px;color:var(--ink-soft);margin:0 0 12px}
+  .row{display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px dashed var(--dust)}
+  .row .rt{flex:1} .row .rd{font-size:12px;color:var(--ink-faint)} .row a{font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -69,136 +50,138 @@
 </header>
 
 <main>
-  <div id="login">
-    <h2>站长登录</h2>
-    <p class="sub">用你注册的账号登录后即可写作</p>
-    <div class="field"><label>用户名</label><input id="lu" type="text" autocomplete="username"></div>
-    <div class="field"><label>密码</label><input id="lp" type="password" autocomplete="current-password"></div>
-    <div class="bar"><button class="btn" id="loginBtn">登录</button><span class="msg" id="lmsg"></span></div>
+  <p id="status">载入中…</p>
+
+  <!-- 登录区 -->
+  <div id="login" style="display:none;max-width:340px;margin:6vh auto 0;background:var(--paper-panel);border:1px solid var(--dust);border-radius:8px;padding:28px">
+    <h2 style="margin:0 0 16px">站长登录</h2>
+    <div class="field"><label>用户名</label><input id="lu" type="text"></div>
+    <div class="field"><label>密码</label><input id="lp" type="password"></div>
+    <button class="btn" id="loginBtn">登录</button>
   </div>
 
-  <div id="editor-wrap">
+  <!-- 编辑区 -->
+  <div id="editor-wrap" style="display:none">
     <div class="field"><label>标题</label><input id="title" type="text" placeholder="文章标题…"></div>
-    <div class="field">
-      <label>正文（像 Word 一样直接排版）</label>
-      <div class="toolbar" id="toolbar">
-        <button data-cmd="formatBlock" data-val="h1" title="大标题">H1</button>
-        <button data-cmd="formatBlock" data-val="h2" title="标题">H2</button>
-        <button data-cmd="formatBlock" data-val="h3" title="小标题">H3</button>
-        <button data-cmd="formatBlock" data-val="p" title="正文">正文</button>
-        <span class="sep"></span>
-        <button data-cmd="bold" title="加粗"><b>B</b></button>
-        <button data-cmd="italic" title="斜体"><i>I</i></button>
-        <button data-cmd="underline" title="下划线"><u>U</u></button>
-        <span class="sep"></span>
-        <button data-cmd="insertUnorderedList" title="项目符号">• 列表</button>
-        <button data-cmd="insertOrderedList" title="编号列表">1. 列表</button>
-        <button data-cmd="formatBlock" data-val="blockquote" title="引用">❝ 引用</button>
-        <span class="sep"></span>
-        <button id="linkBtn" title="插入链接">🔗 链接</button>
-        <button id="imgBtn" title="插入图片链接">🖼 图片</button>
-        <button data-cmd="removeFormat" title="清除格式">清除</button>
-      </div>
-      <div id="editor" contenteditable="true" data-ph="在此写作…"></div>
+    <label style="display:block;font-size:13px;color:var(--ink-soft);margin-bottom:6px">正文（像 Word 一样直接排版）</label>
+    <div class="toolbar">
+      <button type="button" data-cmd="formatBlock" data-val="h1">H1</button>
+      <button type="button" data-cmd="formatBlock" data-val="h2">H2</button>
+      <button type="button" data-cmd="formatBlock" data-val="h3">H3</button>
+      <button type="button" data-cmd="formatBlock" data-val="p">正文</button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="bold"><b>B</b></button>
+      <button type="button" data-cmd="italic"><i>I</i></button>
+      <button type="button" data-cmd="underline"><u>U</u></button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="insertUnorderedList">• 列表</button>
+      <button type="button" data-cmd="insertOrderedList">1. 列表</button>
+      <button type="button" data-cmd="formatBlock" data-val="blockquote">❝ 引用</button>
+      <span class="sep"></span>
+      <button type="button" data-act="link">🔗 链接</button>
+      <button type="button" data-act="img">🖼 图片</button>
     </div>
+    <div id="editor" contenteditable="true" data-ph="在此写作…"></div>
     <div class="bar">
       <button class="btn" id="publishBtn">发布</button>
       <button class="btn ghost" id="newBtn">清空 / 新建</button>
-      <span class="msg" id="pmsg"></span>
+      <span id="pmsg" style="font-size:13px"></span>
     </div>
     <div id="mine"><h3>已发表</h3><div id="mine-list"></div></div>
   </div>
 </main>
 
 <script>
-const store=(()=>{const m={};let ok=true;try{localStorage.setItem('__t','1');localStorage.removeItem('__t')}catch(e){ok=false}
-  return{get:k=>{try{return ok?localStorage.getItem(k):(m[k]??null)}catch(e){return m[k]??null}},
-         set:(k,v)=>{try{ok?localStorage.setItem(k,v):(m[k]=v)}catch(e){m[k]=v}},
-         del:k=>{try{ok?localStorage.removeItem(k):(delete m[k])}catch(e){delete m[k]}}};})();
-const TOK='lsz.token';
-let editingId=null;
-const $=id=>document.getElementById(id);
-const token=()=>store.get(TOK);
-const authHead=()=>({'Authorization':'Bearer '+token()});
-const ed=$('editor');
+// 全局兜底：任何错误都显示出来，绝不静默白屏
+window.onerror=function(m){ var s=document.getElementById('status'); if(s){s.className='err';s.textContent='脚本错误：'+m;} };
 
-async function login(){
-  const u=$('lu').value.trim(),p=$('lp').value;
-  if(!u||!p){msg('lmsg','请输入用户名和密码',true);return;}
-  $('loginBtn').disabled=true;msg('lmsg','登录中…');
-  try{
-    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const d=await r.json();
-    if(!r.ok){msg('lmsg',d.error||'登录失败',true);$('loginBtn').disabled=false;return;}
-    store.set(TOK,d.token);enterEditor();
-  }catch(e){msg('lmsg','无法连接服务器',true);$('loginBtn').disabled=false;}
-}
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function setStatus(t,c){ var s=$('status'); s.textContent=t||''; s.className=c||''; }
+  function getTok(){ try{ return localStorage.getItem('lsz.token'); }catch(e){ return null; } }
+  function setTok(t){ try{ localStorage.setItem('lsz.token',t); }catch(e){} }
+  function delTok(){ try{ localStorage.removeItem('lsz.token'); }catch(e){} }
+  var editingId=null;
 
-async function enterEditor(){
-  let who;
-  try{const r=await fetch('/api/studio/whoami',{headers:authHead()});who=await r.json();if(!r.ok)throw 0;}
-  catch(e){store.del(TOK);$('login').style.display='';msg('lmsg','登录已过期，请重新登录',true);return;}
-  if(!who.isOwner){msg('lmsg','此账号（'+who.username+'）不是站长',true);store.del(TOK);return;}
-  $('login').style.display='none';$('editor-wrap').style.display='';$('whoami').textContent='· '+who.username;
-  loadMine();
-}
+  function showLogin(msg){ $('login').style.display=''; $('editor-wrap').style.display='none'; setStatus(msg||'请登录',msg?'err':''); }
+  function showEditor(name){ $('login').style.display='none'; $('editor-wrap').style.display=''; $('whoami').textContent='· '+name; setStatus('已登录：'+name,'ok'); loadMine(); }
 
-$('toolbar').addEventListener('click',e=>{
-  const btn=e.target.closest('button'); if(!btn||btn.id==='linkBtn'||btn.id==='imgBtn')return;
-  e.preventDefault(); ed.focus();
-  const cmd=btn.dataset.cmd, val=btn.dataset.val;
-  if(cmd==='formatBlock') document.execCommand('formatBlock',false,val);
-  else document.execCommand(cmd,false,null);
-});
-$('linkBtn').addEventListener('click',e=>{e.preventDefault();ed.focus();const u=prompt('链接地址（http…）');if(u)document.execCommand('createLink',false,u);});
-$('imgBtn').addEventListener('click',e=>{e.preventDefault();ed.focus();const u=prompt('图片地址（http…）');if(u)document.execCommand('insertImage',false,u);});
+  // 登录
+  $('loginBtn').onclick=function(){
+    var u=$('lu').value.trim(), p=$('lp').value;
+    if(!u||!p){ setStatus('请输入用户名和密码','err'); return; }
+    setStatus('登录中…');
+    fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(x){ if(!x.ok){ setStatus(x.d.error||'登录失败','err'); return; } setTok(x.d.token); check(); })
+      .catch(function(){ setStatus('无法连接服务器','err'); });
+  };
 
-async function publish(){
-  const title=$('title').value.trim();
-  const body=ed.innerHTML;
-  const text=ed.innerText.trim();
-  if(!title){msg('pmsg','标题不能为空',true);return;}
-  if(!text){msg('pmsg','正文不能为空',true);return;}
-  const excerpt=text.slice(0,120);
-  $('publishBtn').disabled=true;msg('pmsg','发布中…');
-  const url=editingId?'/api/studio/articles/'+editingId:'/api/studio/articles';
-  const method=editingId?'PUT':'POST';
-  try{
-    const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...authHead()},body:JSON.stringify({title,body,excerpt})});
-    const d=await r.json();
-    if(!r.ok){msg('pmsg',d.error||'发布失败',true);$('publishBtn').disabled=false;return;}
-    msg('pmsg',editingId?'已更新 ✓':'已发布 ✓');$('publishBtn').disabled=false;newDraft();loadMine();
-  }catch(e){msg('pmsg','无法连接服务器',true);$('publishBtn').disabled=false;}
-}
-function newDraft(){editingId=null;$('title').value='';ed.innerHTML='';$('publishBtn').textContent='发布';}
+  // 校验身份
+  function check(){
+    var t=getTok();
+    if(!t){ showLogin(); return; }
+    setStatus('验证身份…');
+    fetch('/api/studio/whoami',{headers:{'Authorization':'Bearer '+t}})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(x){
+        if(!x.ok){ delTok(); showLogin('登录已过期，请重新登录'); return; }
+        if(!x.d.isOwner){ setStatus('此账号（'+x.d.username+'）不是站长。请用站长账号登录。','err'); $('login').style.display=''; $('editor-wrap').style.display='none'; return; }
+        showEditor(x.d.username);
+      })
+      .catch(function(){ showLogin('网络错误，请重试'); });
+  }
 
-async function loadMine(){
-  try{
-    const r=await fetch('/api/studio/articles');const list=await r.json();
-    $('mine-list').innerHTML=list.length?list.map(a=>`
-      <div class="row"><div class="rt">${esc(a.title)}</div>
-        <span class="rd">${new Date(a.created_at).toLocaleDateString('zh-CN')}</span>
-        <a onclick="editArticle(${a.id})">编辑</a><a class="del" onclick="delArticle(${a.id})">删除</a></div>`).join('')
-      :'<div style="color:var(--ink-faint);font-size:13px">还没有文章。</div>';
-  }catch(e){}
-}
-async function editArticle(id){
-  const r=await fetch('/api/studio/articles/'+id);const a=await r.json();
-  editingId=id;$('title').value=a.title;ed.innerHTML=a.body;$('publishBtn').textContent='更新';window.scrollTo({top:0,behavior:'smooth'});
-}
-async function delArticle(id){
-  if(!confirm('确定删除这篇文章？'))return;
-  await fetch('/api/studio/articles/'+id,{method:'DELETE',headers:authHead()});
-  if(editingId===id)newDraft();loadMine();
-}
-function msg(id,t,err){const e=$(id);e.textContent=t;e.className='msg'+(err?' err':'');}
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+  // 工具栏
+  document.querySelector('.toolbar').addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return; e.preventDefault();
+    $('editor').focus();
+    try{
+      if(b.dataset.act==='link'){ var u=prompt('链接地址'); if(u) document.execCommand('createLink',false,u); return; }
+      if(b.dataset.act==='img'){ var g=prompt('图片地址'); if(g) document.execCommand('insertImage',false,g); return; }
+      if(b.dataset.cmd==='formatBlock') document.execCommand('formatBlock',false,b.dataset.val);
+      else document.execCommand(b.dataset.cmd,false,null);
+    }catch(err){}
+  });
 
-$('loginBtn').addEventListener('click',login);
-$('publishBtn').addEventListener('click',publish);
-$('newBtn').addEventListener('click',newDraft);
-$('lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-if(token())enterEditor();
+  // 发布
+  $('publishBtn').onclick=function(){
+    var title=$('title').value.trim(), body=$('editor').innerHTML, text=$('editor').innerText.trim();
+    if(!title){ $('pmsg').textContent='标题不能为空'; return; }
+    if(!text){ $('pmsg').textContent='正文不能为空'; return; }
+    $('pmsg').textContent='发布中…';
+    var url=editingId?'/api/studio/articles/'+editingId:'/api/studio/articles';
+    fetch(url,{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getTok()},
+      body:JSON.stringify({title:title,body:body,excerpt:text.slice(0,120)})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(x){ if(!x.ok){ $('pmsg').textContent=x.d.error||'发布失败'; return; }
+        $('pmsg').textContent=editingId?'已更新 ✓':'已发布 ✓'; newDraft(); loadMine(); })
+      .catch(function(){ $('pmsg').textContent='无法连接服务器'; });
+  };
+  function newDraft(){ editingId=null; $('title').value=''; $('editor').innerHTML=''; }
+  $('newBtn').onclick=newDraft;
+
+  function loadMine(){
+    fetch('/api/studio/articles').then(function(r){ return r.json(); }).then(function(list){
+      $('mine-list').innerHTML = (list&&list.length) ? list.map(function(a){
+        return '<div class="row"><div class="rt">'+esc(a.title)+'</div><span class="rd">'+
+          new Date(a.created_at).toLocaleDateString('zh-CN')+'</span>'+
+          '<a onclick="__edit('+a.id+')">编辑</a><a onclick="__del('+a.id+')">删除</a></div>';
+      }).join('') : '<div style="color:var(--ink-faint);font-size:13px">还没有文章。</div>';
+    }).catch(function(){});
+  }
+  window.__edit=function(id){ fetch('/api/studio/articles/'+id).then(function(r){return r.json();}).then(function(a){
+    editingId=id; $('title').value=a.title; $('editor').innerHTML=a.body; window.scrollTo(0,0); }); };
+  window.__del=function(id){ if(!confirm('确定删除？'))return;
+    fetch('/api/studio/articles/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+getTok()}}).then(function(){ if(editingId===id)newDraft(); loadMine(); }); };
+
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  $('lp').addEventListener('keydown',function(e){ if(e.key==='Enter') $('loginBtn').click(); });
+
+  // 启动：有令牌就校验，没有就显示登录框
+  check();
+})();
 </script>
 </body>
 </html>
