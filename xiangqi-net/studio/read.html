@@ -79,7 +79,9 @@
   <h2>留言</h2>
   <div class="cmt-list" id="cmt-list"></div>
 
-  <div class="cmt-form">
+  <div id="cmt-closed" style="display:none;color:var(--ink-faint);font-size:14px;padding:14px 0">此文章已关闭留言。</div>
+
+  <div class="cmt-form" id="cmt-form">
     <h3>留下你的留言</h3>
     <div class="field" id="nick-field">
       <label>昵称（必填）</label>
@@ -121,6 +123,11 @@
           '<div class="content">'+a.body+'</div>';
         document.getElementById('cmt-section').style.display='';
         document.getElementById('back-link').style.display='';
+        // 留言区：根据文章设置决定是否显示表单
+        if(!a.comments_open){
+          document.getElementById('cmt-form').style.display='none';
+          document.getElementById('cmt-closed').style.display='';
+        }
         loadComments();
         checkUser();
       })

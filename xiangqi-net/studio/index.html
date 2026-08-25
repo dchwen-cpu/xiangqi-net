@@ -254,16 +254,9 @@ function renderLinks(){
 function setupCollectPanel(isOwner){
   if(!isOwner) return;
   var sec = document.getElementById('collect');
-  // 在标题旁加「＋ 添加」按钮
   var label = sec.querySelector('.sec-label');
-  var addBtn = document.createElement('button');
-  addBtn.textContent='＋ 添加';
-  addBtn.className='btn-sm solid';
-  addBtn.style.cssText='margin-left:12px;font-size:12px';
-  addBtn.onclick=function(){ panel.style.display=panel.style.display?'':''; };
-  label.appendChild(addBtn);
 
-  // 添加表单
+  // 先建面板，再建按钮（这样 onclick 里能引用到 panel）
   var panel = document.createElement('div');
   panel.style.cssText='background:var(--paper-panel);border:1px solid var(--dust);border-radius:6px;padding:16px;margin-bottom:16px;display:none';
   panel.innerHTML=
@@ -278,25 +271,40 @@ function setupCollectPanel(isOwner){
     '<input id="c-note" type="text" placeholder="一句话说明" maxlength="100" style="width:100%;padding:8px 10px;font-family:inherit;font-size:14px;border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink)"></div>'+
     '</div>'+
     '<button id="c-submit" class="btn-sm solid" style="font-size:14px;padding:8px 18px">保存</button>'+
-    '<span id="c-msg" style="font-size:13px;margin-left:10px;color:var(--celadon)"></span>';
+    '<span id="c-msg" style="font-size:13px;margin-left:10px"></span>';
   sec.insertBefore(panel, document.getElementById('list-links'));
 
+  // 按钮在面板之后建，onclick 能正确引用 panel
+  var addBtn = document.createElement('button');
+  addBtn.textContent='＋ 添加';
+  addBtn.className='btn-sm solid';
+  addBtn.style.cssText='margin-left:12px;font-size:12px';
+  addBtn.onclick=function(){
+    panel.style.display = (panel.style.display==='none') ? '' : 'none';
+  };
+  label.appendChild(addBtn);
+
   document.getElementById('c-submit').onclick=function(){
-    var url=$('c-url').value.trim(), title=$('c-title').value.trim();
-    var tag=$('c-tag').value.trim()||'其它', note=$('c-note').value.trim();
+    var url=document.getElementById('c-url').value.trim();
+    var title=document.getElementById('c-title').value.trim();
+    var tag=document.getElementById('c-tag').value.trim()||'其它';
+    var note=document.getElementById('c-note').value.trim();
     var msg=document.getElementById('c-msg');
     if(!url){msg.textContent='链接不能为空';msg.style.color='var(--seal-deep)';return;}
     if(!title){msg.textContent='标题不能为空';msg.style.color='var(--seal-deep)';return;}
     msg.textContent='保存中…';msg.style.color='var(--ink-faint)';
+    var tok; try{tok=localStorage.getItem('lsz.token');}catch(e){tok=null;}
     fetch('/api/studio/collections',{method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('lsz.token')},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||'')},
       body:JSON.stringify({url:url,title:title,note:note,tag:tag})
     }).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(x){
         if(!x.ok){msg.textContent=x.d.error||'保存失败';msg.style.color='var(--seal-deep)';return;}
         msg.textContent='已添加 ✓';msg.style.color='var(--celadon)';
-        document.getElementById('c-url').value='';document.getElementById('c-title').value='';
-        document.getElementById('c-tag').value='';document.getElementById('c-note').value='';
+        document.getElementById('c-url').value='';
+        document.getElementById('c-title').value='';
+        document.getElementById('c-tag').value='';
+        document.getElementById('c-note').value='';
         renderLinks();
       }).catch(function(){msg.textContent='无法连接服务器';msg.style.color='var(--seal-deep)';});
   };

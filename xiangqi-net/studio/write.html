@@ -85,6 +85,10 @@
     <div class="bar">
       <button class="btn" id="publishBtn">发布</button>
       <button class="btn ghost" id="newBtn">清空 / 新建</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-soft);cursor:pointer">
+        <input type="checkbox" id="comments-open" checked style="width:auto;accent-color:var(--celadon)">
+        开放留言
+      </label>
       <span id="pmsg" style="font-size:13px"></span>
     </div>
     <div id="mine"><h3>已发表</h3><div id="mine-list"></div></div>
@@ -147,12 +151,13 @@ window.onerror=function(m){ var s=document.getElementById('status'); if(s){s.cla
   // 发布
   $('publishBtn').onclick=function(){
     var title=$('title').value.trim(), body=$('editor').innerHTML, text=$('editor').innerText.trim();
+    var commentsOpen = document.getElementById('comments-open').checked;
     if(!title){ $('pmsg').textContent='标题不能为空'; return; }
     if(!text){ $('pmsg').textContent='正文不能为空'; return; }
     $('pmsg').textContent='发布中…';
     var url=editingId?'/api/studio/articles/'+editingId:'/api/studio/articles';
     fetch(url,{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getTok()},
-      body:JSON.stringify({title:title,body:body,excerpt:text.slice(0,120)})})
+      body:JSON.stringify({title:title,body:body,excerpt:text.slice(0,120),comments_open:commentsOpen})})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
       .then(function(x){ if(!x.ok){ $('pmsg').textContent=x.d.error||'发布失败'; return; }
         $('pmsg').textContent=editingId?'已更新 ✓':'已发布 ✓'; newDraft(); loadMine(); })
@@ -171,7 +176,9 @@ window.onerror=function(m){ var s=document.getElementById('status'); if(s){s.cla
     }).catch(function(){});
   }
   window.__edit=function(id){ fetch('/api/studio/articles/'+id).then(function(r){return r.json();}).then(function(a){
-    editingId=id; $('title').value=a.title; $('editor').innerHTML=a.body; window.scrollTo(0,0); }); };
+    editingId=id; $('title').value=a.title; $('editor').innerHTML=a.body;
+    document.getElementById('comments-open').checked = (a.comments_open !== 0);
+    $('publishBtn').textContent='更新'; window.scrollTo(0,0); }); };
   window.__del=function(id){ if(!confirm('确定删除？'))return;
     fetch('/api/studio/articles/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+getTok()}}).then(function(){ if(editingId===id)newDraft(); loadMine(); }); };
 
