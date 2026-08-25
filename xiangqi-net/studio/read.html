@@ -4,57 +4,206 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>立山斋 · 文</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
 <style>
   :root{
-    --paper:#efe7d3; --paper-lit:#f6f0e0; --ink:#262019; --ink-soft:#5c5344;
-    --ink-faint:#8b8069; --seal:#b23a2c; --dust:#b8ab8a;
-    --wenkai:"LXGW WenKai Screen","LXGW WenKai",STKaiti,KaiTi,serif;
+    --paper:#efe7d3; --paper-lit:#f6f0e0; --paper-panel:#f8f3e6;
+    --ink:#262019; --ink-soft:#5c5344; --ink-faint:#8b8069;
+    --seal:#b23a2c; --seal-deep:#933024; --celadon:#4a7c68; --dust:#b8ab8a; --dust-lit:#d8cca8;
+    --font:"STKaiti","KaiTi","Kaiti SC","Songti SC",serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:var(--wenkai);color:var(--ink);background:var(--paper);
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--paper);
     background-image:radial-gradient(circle at 20% 12%,rgba(255,255,255,.35),transparent 45%);line-height:1.9}
   a{color:var(--seal);text-decoration:none}
-  header{padding:16px clamp(16px,5vw,40px);border-bottom:1px solid rgba(45,36,22,.12);font-size:14px}
-  article{max-width:720px;margin:0 auto;padding:clamp(28px,5vw,56px) clamp(18px,6vw,32px) 80px}
+  header{padding:16px clamp(16px,5vw,40px);border-bottom:1px solid rgba(45,36,22,.12);font-size:14px;
+    display:flex;align-items:center;justify-content:space-between}
+  header .right{font-size:13px;color:var(--ink-faint)}
+
+  article{max-width:720px;margin:0 auto;padding:clamp(28px,5vw,56px) clamp(18px,6vw,32px) 0}
   h1.title{font-size:clamp(26px,5vw,38px);font-weight:600;letter-spacing:.03em;margin:0 0 10px;line-height:1.4}
   .meta{color:var(--ink-faint);font-size:13px;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid rgba(45,36,22,.12)}
-  .meta .seal{color:var(--seal)}
+  .meta .seal-name{color:var(--seal)}
   .content{font-size:17px}
   .content h1,.content h2,.content h3{letter-spacing:.03em;margin:1.4em 0 .5em}
   .content h1{font-size:1.6em} .content h2{font-size:1.35em} .content h3{font-size:1.15em}
   .content p{margin:0 0 1em}
   .content blockquote{border-left:3px solid var(--seal);margin:1.2em 0;padding:.4em 1.2em;color:var(--ink-soft);background:rgba(178,58,44,.04)}
   .content img{max-width:100%;border-radius:6px;margin:1em 0}
-  .content pre{background:#2b2620;color:#f0e9d6;padding:14px 16px;border-radius:6px;overflow:auto;font-size:14px}
   .content a{border-bottom:1px dotted var(--seal)}
-  .back{margin-top:48px;padding-top:20px;border-top:1px dashed var(--dust)}
-  .state{max-width:720px;margin:0 auto;padding:80px 20px;text-align:center;color:var(--ink-faint)}
+  .content ul,.content ol{padding-left:1.4em;margin:0 0 1em}
+  .content li{margin:.2em 0}
+
+  /* 留言区 */
+  .comments{max-width:720px;margin:0 auto;padding:clamp(20px,4vw,40px) clamp(18px,6vw,32px) 60px;border-top:1px solid rgba(45,36,22,.1);margin-top:40px}
+  .comments h2{font-size:18px;letter-spacing:.12em;margin:0 0 20px;color:var(--ink-soft)}
+  .cmt-list{display:flex;flex-direction:column;gap:14px;margin-bottom:28px}
+  .cmt{background:var(--paper-panel);border:1px solid var(--dust-lit);border-radius:6px;padding:14px 16px}
+  .cmt .head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .cmt .nick{font-size:14px;font-weight:600}
+  .cmt .nick.reg{color:var(--seal)}
+  .cmt .when{font-size:12px;color:var(--ink-faint);margin-left:auto}
+  .cmt .del{font-size:12px;color:var(--ink-faint);cursor:pointer;background:none;border:none;padding:0;font-family:inherit}
+  .cmt .del:hover{color:var(--seal)}
+  .cmt .body{font-size:15px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+  .no-cmt{color:var(--ink-faint);font-size:14px;margin-bottom:24px}
+
+  /* 留言表单 */
+  .cmt-form{background:var(--paper-panel);border:1px solid var(--dust);border-radius:6px;padding:18px}
+  .cmt-form h3{font-size:15px;color:var(--ink-soft);margin:0 0 14px;letter-spacing:.1em}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px}
+  input[type=text],textarea{width:100%;padding:10px 12px;font-family:inherit;font-size:15px;
+    border:1px solid var(--dust);border-radius:4px;background:var(--paper-lit);color:var(--ink);resize:vertical}
+  input:focus,textarea:focus{outline:none;border-color:var(--celadon)}
+  textarea{min-height:90px}
+  .btn{border:1px solid var(--seal);background:var(--seal);color:var(--paper-lit);padding:9px 20px;
+    border-radius:4px;font-family:inherit;font-size:15px;cursor:pointer}
+  .btn:hover{background:var(--seal-deep)}
+  .btn:disabled{opacity:.6;cursor:default}
+  .fmsg{font-size:13px;margin-top:8px;min-height:18px}
+  .fmsg.err{color:var(--seal-deep)} .fmsg.ok{color:var(--celadon)}
+
+  .back{max-width:720px;margin:0 auto;padding:0 clamp(18px,6vw,32px) 32px}
+  .state{max-width:720px;margin:40px auto;padding:0 20px;text-align:center;color:var(--ink-faint)}
 </style>
 </head>
 <body>
-<header><a href="/">← 立山斋</a></header>
+<header>
+  <a href="/">← 立山斋</a>
+  <span class="right" id="hdr-user"></span>
+</header>
+
 <article id="art"><div class="state">载入中…</div></article>
 
-<script>
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-const id = new URLSearchParams(location.search).get('id');
-const root = document.getElementById('art');
+<section class="comments" id="cmt-section" style="display:none">
+  <h2>留言</h2>
+  <div class="cmt-list" id="cmt-list"></div>
 
-if(!id){ root.innerHTML='<div class="state">没有指定文章。<br><a href="/">返回书斋</a></div>'; }
-else fetch('/api/studio/articles/'+encodeURIComponent(id))
-  .then(r=>{ if(!r.ok) throw 0; return r.json(); })
-  .then(a=>{
-    document.title = a.title + ' · 立山斋';
-    const date = new Date(a.created_at).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
-    // Quill 产出的是 .ql-editor 语义 HTML，套上 ql-editor 类让样式对齐；正文来自站长本人，可信
-    root.innerHTML = `
-      <h1 class="title">${esc(a.title)}</h1>
-      <div class="meta"><span class="seal">${esc(a.author||'立山斋')}</span> · ${date}</div>
-      <div class="content">${a.body}</div>
-      <div class="back"><a href="/">← 返回书斋</a></div>`;
-  })
-  .catch(()=>{ root.innerHTML='<div class="state">文章不存在或已删除。<br><a href="/">返回书斋</a></div>'; });
+  <div class="cmt-form">
+    <h3>留下你的留言</h3>
+    <div class="field" id="nick-field">
+      <label>昵称（必填）</label>
+      <input id="f-nick" type="text" maxlength="30" placeholder="你的昵称…">
+    </div>
+    <div class="field">
+      <label>内容（最多 500 字）</label>
+      <textarea id="f-body" maxlength="500" placeholder="写下你的想法…"></textarea>
+    </div>
+    <button class="btn" id="f-submit">发布留言</button>
+    <div class="fmsg" id="f-msg"></div>
+  </div>
+</section>
+
+<div class="back" id="back-link" style="display:none"><a href="/">← 返回书斋</a></div>
+
+<script>
+(function(){
+  var OWNER = '';   // 由 whoami 接口告知
+  var articleId = Number(new URLSearchParams(location.search).get('id'));
+
+  function esc(s){ return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function fmt(ts){ return new Date(ts).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'}); }
+  function fmtFull(ts){ return new Date(ts).toLocaleString('zh-CN'); }
+  function getTok(){ try{ return localStorage.getItem('lsz.token'); }catch(e){ return null; } }
+  function authHead(){ var t=getTok(); return t?{'Authorization':'Bearer '+t}:{}; }
+
+  // 加载文章
+  if(!articleId){
+    document.getElementById('art').innerHTML='<div class="state">没有指定文章。<br><a href="/">返回书斋</a></div>';
+  } else {
+    fetch('/api/studio/articles/'+articleId)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(a){
+        document.title = a.title + ' · 立山斋';
+        document.getElementById('art').innerHTML =
+          '<h1 class="title">'+esc(a.title)+'</h1>'+
+          '<div class="meta"><span class="seal-name">'+esc(a.author||'立山斋')+'</span> · '+fmt(a.created_at)+'</div>'+
+          '<div class="content">'+a.body+'</div>';
+        document.getElementById('cmt-section').style.display='';
+        document.getElementById('back-link').style.display='';
+        loadComments();
+        checkUser();
+      })
+      .catch(function(){
+        document.getElementById('art').innerHTML='<div class="state">文章不存在或已删除。<br><a href="/">返回书斋</a></div>';
+      });
+  }
+
+  // 检查是否已登录（注册用户 / 站长）
+  function checkUser(){
+    var t = getTok(); if(!t) return;
+    fetch('/api/studio/whoami',{headers:authHead()})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.username){
+          // 已登录：昵称框自动填入用户名并隐藏
+          document.getElementById('hdr-user').textContent = d.username;
+          document.getElementById('f-nick').value = d.username;
+          document.getElementById('nick-field').style.display='none';
+          if(d.isOwner) OWNER = d.username;
+          loadComments(); // 重刷，带删除按钮
+        }
+      }).catch(function(){});
+  }
+
+  // 加载留言
+  function loadComments(){
+    fetch('/api/studio/articles/'+articleId+'/comments')
+      .then(function(r){ return r.json(); })
+      .then(function(list){
+        var el = document.getElementById('cmt-list');
+        if(!list||!list.length){
+          el.innerHTML='<div class="no-cmt">还没有留言，来说第一句吧。</div>'; return;
+        }
+        el.innerHTML = list.map(function(c){
+          var delBtn = OWNER ? '<button class="del" onclick="__delCmt('+c.id+')">删除</button>' : '';
+          var nickCls = c.user_id ? 'nick reg' : 'nick';
+          var tag = c.user_id ? '（注册用户）' : '';
+          return '<div class="cmt" id="cmt-'+c.id+'">'+
+            '<div class="head">'+
+              '<span class="'+nickCls+'">'+esc(c.nickname)+tag+'</span>'+
+              '<span class="when">'+fmtFull(c.created_at)+'</span>'+
+              delBtn+
+            '</div>'+
+            '<div class="body">'+esc(c.body)+'</div>'+
+          '</div>';
+        }).join('');
+      }).catch(function(){});
+  }
+
+  // 发留言
+  document.getElementById('f-submit').onclick = function(){
+    var nick = document.getElementById('f-nick').value.trim();
+    var body = document.getElementById('f-body').value.trim();
+    var msg  = document.getElementById('f-msg');
+    if(!nick){ msg.textContent='请填写昵称'; msg.className='fmsg err'; return; }
+    if(!body){ msg.textContent='留言内容不能为空'; msg.className='fmsg err'; return; }
+    this.disabled=true; msg.textContent='发布中…'; msg.className='fmsg';
+    fetch('/api/studio/articles/'+articleId+'/comments',{
+      method:'POST',
+      headers:Object.assign({'Content-Type':'application/json'},authHead()),
+      body:JSON.stringify({nickname:nick,body:body})
+    }).then(function(r){ return r.json().then(function(d){return{ok:r.ok,d:d};}); })
+      .then(function(x){
+        document.getElementById('f-submit').disabled=false;
+        if(!x.ok){ msg.textContent=x.d.error||'发布失败'; msg.className='fmsg err'; return; }
+        msg.textContent='留言已发布 ✓'; msg.className='fmsg ok';
+        document.getElementById('f-body').value='';
+        loadComments();
+      }).catch(function(){
+        document.getElementById('f-submit').disabled=false;
+        msg.textContent='无法连接服务器'; msg.className='fmsg err';
+      });
+  };
+
+  // 站长删留言
+  window.__delCmt = function(id){
+    if(!confirm('确定删除这条留言？')) return;
+    fetch('/api/studio/comments/'+id,{method:'DELETE',headers:authHead()})
+      .then(function(){ loadComments(); })
+      .catch(function(){});
+  };
+})();
 </script>
 </body>
 </html>
