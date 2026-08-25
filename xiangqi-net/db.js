@@ -105,6 +105,10 @@ CREATE TABLE IF NOT EXISTS collections (
 );
 `);
 
+// 给已有的 articles 表补加 comments_open 列（幂等：列已存在时忽略错误）
+try { db.exec(`ALTER TABLE articles ADD COLUMN comments_open INTEGER NOT NULL DEFAULT 1`); }
+catch(e) { /* 列已存在，忽略 */ }
+
 // ── 定级门槛：对局数不足则棋力显示"未定级" ──
 const PLACEMENT_GAMES = 5;
 
@@ -147,28 +151,32 @@ function recordVisit(visitorId){
   return { total: visitStmts.total.get().n, unique: visitStmts.uniq.get().n };
 }
 
-// ── 文章（文墨）──
-const artStmts = {
-  insert: db.prepare(`INSERT INTO articles (author_id,title,body,excerpt,comments_open,created_at,updated_at)
-                      VALUES (?,?,?,?,?,?,?)`),
-  update: db.prepare(`UPDATE articles SET title=?, body=?, excerpt=?, comments_open=?, updated_at=? WHERE id=?`),
-  del:    db.prepare(`DELETE FROM articles WHERE id=?`),
-  byId:   db.prepare(`SELECT a.*, u.username AS author FROM articles a
-                      JOIN users u ON u.id=a.author_id WHERE a.id=?`),
-  list:   db.prepare(`SELECT id,title,excerpt,created_at FROM articles ORDER BY created_at DESC`),
-};
+// ── 文章（文墨）── 懒加载 prepare，避免启动时列还没加好就崩
+let _artStmts = null;
+function artStmts(){
+  if(!_artStmts) _artStmts = {
+    insert: db.prepare(`INSERT INTO articles (author_id,title,body,excerpt,comments_open,created_at,updated_at)
+                        VALUES (?,?,?,?,?,?,?)`),
+    update: db.prepare(`UPDATE articles SET title=?, body=?, excerpt=?, comments_open=?, updated_at=? WHERE id=?`),
+    del:    db.prepare(`DELETE FROM articles WHERE id=?`),
+    byId:   db.prepare(`SELECT a.*, u.username AS author FROM articles a
+                        JOIN users u ON u.id=a.author_id WHERE a.id=?`),
+    list:   db.prepare(`SELECT id,title,excerpt,created_at FROM articles ORDER BY created_at DESC`),
+  };
+  return _artStmts;
+}
 function createArticle(authorId, title, body, excerpt, commentsOpen){
   const now = Date.now();
-  const info = artStmts.insert.run(authorId, title, body, excerpt, commentsOpen?1:1, now, now);
-  return artStmts.byId.get(info.lastInsertRowid);
+  const info = artStmts().insert.run(authorId, title, body, excerpt, commentsOpen?1:0, now, now);
+  return artStmts().byId.get(info.lastInsertRowid);
 }
 function updateArticle(id, title, body, excerpt, commentsOpen){
-  const r = artStmts.update.run(title, body, excerpt, commentsOpen?1:0, Date.now(), id);
-  return r.changes ? artStmts.byId.get(id) : null;
+  const r = artStmts().update.run(title, body, excerpt, commentsOpen?1:0, Date.now(), id);
+  return r.changes ? artStmts().byId.get(id) : null;
 }
-function deleteArticle(id){ return artStmts.del.run(id).changes > 0; }
-function getArticle(id){ return artStmts.byId.get(id); }
-function listArticles(){ return artStmts.list.all(); }
+function deleteArticle(id){ return artStmts().del.run(id).changes > 0; }
+function getArticle(id){ return artStmts().byId.get(id); }
+function listArticles(){ return artStmts().list.all(); }
 
 // ── 留言 ──
 const cmtStmts = {
