@@ -73,13 +73,14 @@ CREATE TABLE IF NOT EXISTS visits (
 );
 
 CREATE TABLE IF NOT EXISTS articles (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  author_id  INTEGER NOT NULL,
-  title      TEXT NOT NULL,
-  body       TEXT NOT NULL,
-  excerpt    TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id      INTEGER NOT NULL,
+  title          TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  excerpt        TEXT,
+  comments_open  INTEGER NOT NULL DEFAULT 1,   -- 1=开放留言 0=关闭
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
   FOREIGN KEY(author_id) REFERENCES users(id)
 );
 
@@ -148,21 +149,21 @@ function recordVisit(visitorId){
 
 // ── 文章（文墨）──
 const artStmts = {
-  insert: db.prepare(`INSERT INTO articles (author_id,title,body,excerpt,created_at,updated_at)
-                      VALUES (?,?,?,?,?,?)`),
-  update: db.prepare(`UPDATE articles SET title=?, body=?, excerpt=?, updated_at=? WHERE id=?`),
+  insert: db.prepare(`INSERT INTO articles (author_id,title,body,excerpt,comments_open,created_at,updated_at)
+                      VALUES (?,?,?,?,?,?,?)`),
+  update: db.prepare(`UPDATE articles SET title=?, body=?, excerpt=?, comments_open=?, updated_at=? WHERE id=?`),
   del:    db.prepare(`DELETE FROM articles WHERE id=?`),
   byId:   db.prepare(`SELECT a.*, u.username AS author FROM articles a
                       JOIN users u ON u.id=a.author_id WHERE a.id=?`),
   list:   db.prepare(`SELECT id,title,excerpt,created_at FROM articles ORDER BY created_at DESC`),
 };
-function createArticle(authorId, title, body, excerpt){
+function createArticle(authorId, title, body, excerpt, commentsOpen){
   const now = Date.now();
-  const info = artStmts.insert.run(authorId, title, body, excerpt, now, now);
+  const info = artStmts.insert.run(authorId, title, body, excerpt, commentsOpen?1:1, now, now);
   return artStmts.byId.get(info.lastInsertRowid);
 }
-function updateArticle(id, title, body, excerpt){
-  const r = artStmts.update.run(title, body, excerpt, Date.now(), id);
+function updateArticle(id, title, body, excerpt, commentsOpen){
+  const r = artStmts.update.run(title, body, excerpt, commentsOpen?1:0, Date.now(), id);
   return r.changes ? artStmts.byId.get(id) : null;
 }
 function deleteArticle(id){ return artStmts.del.run(id).changes > 0; }

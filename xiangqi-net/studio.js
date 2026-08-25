@@ -34,22 +34,24 @@ router.get('/whoami', authRequired, (req, res) => {
 
 // 发表（站长）
 router.post('/articles', authRequired, ownerOnly, (req, res) => {
-  const title   = String(req.body?.title || '').trim();
-  const body    = String(req.body?.body || '');
-  const excerpt = String(req.body?.excerpt || '').slice(0, 200);
-  if (!title)        return res.status(400).json({ error: '标题不能为空' });
+  const title        = String(req.body?.title || '').trim();
+  const body         = String(req.body?.body || '');
+  const excerpt      = String(req.body?.excerpt || '').slice(0, 200);
+  const commentsOpen = req.body?.comments_open !== false;
+  if (!title)          return res.status(400).json({ error: '标题不能为空' });
   if (body.length < 1) return res.status(400).json({ error: '正文不能为空' });
   const user = dbx.findByName(req.user.username);
-  res.json(dbx.createArticle(user.id, title, body, excerpt));
+  res.json(dbx.createArticle(user.id, title, body, excerpt, commentsOpen));
 });
 
 // 修改（站长）
 router.put('/articles/:id', authRequired, ownerOnly, (req, res) => {
-  const title   = String(req.body?.title || '').trim();
-  const body    = String(req.body?.body || '');
-  const excerpt = String(req.body?.excerpt || '').slice(0, 200);
+  const title        = String(req.body?.title || '').trim();
+  const body         = String(req.body?.body || '');
+  const excerpt      = String(req.body?.excerpt || '').slice(0, 200);
+  const commentsOpen = req.body?.comments_open !== false;
   if (!title) return res.status(400).json({ error: '标题不能为空' });
-  const a = dbx.updateArticle(Number(req.params.id), title, body, excerpt);
+  const a = dbx.updateArticle(Number(req.params.id), title, body, excerpt, commentsOpen);
   if (!a) return res.status(404).json({ error: '文章不存在' });
   res.json(a);
 });
@@ -73,6 +75,7 @@ router.post('/articles/:id/comments', (req, res) => {
   const articleId = Number(req.params.id);
   const art = dbx.getArticle(articleId);
   if (!art) return res.status(404).json({ error: '文章不存在' });
+  if (!art.comments_open) return res.status(403).json({ error: '此文章已关闭留言' });
 
   // 注册用户：从 JWT 取用户名；访客：用提交的 nickname
   let nickname, userId = null;
