@@ -78,6 +78,12 @@ app.get('/api/online', (_req, res) => {
   res.json({ count: room ? room.size : 0 });
 });
 
+// 棋力排行榜（定级完成的注册用户，按棋力降序）
+app.get('/api/leaderboard', (_req, res) => {
+  try { res.json(dbx.leaderboard(100)); }
+  catch (e) { console.error('[leaderboard]', e); res.status(500).json({ error: 'leaderboard failed' }); }
+});
+
 // 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
 app.get('/engine-check', (_,res)=>{
   const fs=require('fs');

@@ -7,6 +7,7 @@
 const path = require('path');
 const fs   = require('fs');
 const Database = require('better-sqlite3');
+const rating = require('./rating');   // Glicko-2 算分
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'lishanzhai.db');
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });   // 确保目录存在
@@ -210,9 +211,52 @@ function listCollections(){ return colStmts.list.all(); }
 function deleteCollection(id){ return colStmts.del.run(id).changes > 0; }
 function listTags(){ return colStmts.tags.all().map(r=>r.tag); }
 
+// ── 对局算分（Glicko-2 棋力 + 积分）──
+let _rateStmts = null;
+function rateStmts(){
+  if(!_rateStmts) _rateStmts = {
+    upd: db.prepare(`UPDATE users SET rating=?, rd=?, vol=?, games=games+1,
+                       wins=wins+?, losses=losses+?, draws=draws+?, points=MAX(0,points+?)
+                     WHERE id=?`),
+    rec: db.prepare(`INSERT INTO game_results (ts,red_id,black_id,winner,table_id) VALUES (?,?,?,?,?)`),
+  };
+  return _rateStmts;
+}
+// winner: 'red' | 'black' | 'draw'  —— 返回双方更新后的公开资料
+function applyGameResult(redId, blackId, winner, tableId){
+  const red = stmts.byId.get(redId), black = stmts.byId.get(blackId);
+  if(!red || !black) return null;
+  const redScore   = winner==='red' ? 1 : (winner==='draw' ? 0.5 : 0);
+  const blackScore = 1 - redScore;
+
+  const nr = rating.updatePlayer({rating:red.rating, rd:red.rd, vol:red.vol},
+                                 [{rating:black.rating, rd:black.rd, score:redScore}]);
+  const nb = rating.updatePlayer({rating:black.rating, rd:black.rd, vol:black.vol},
+                                 [{rating:red.rating, rd:red.rd, score:blackScore}]);
+
+  const pts = s => (s===1 ? 16 : (s===0.5 ? 0 : -16));   // 积分：胜+16 和0 负-16
+  const wld = s => ({ w: s===1?1:0, l: s===0?1:0, d: s===0.5?1:0 });
+  const rw = wld(redScore), bw = wld(blackScore);
+
+  const tx = db.transaction(() => {
+    rateStmts().upd.run(nr.rating, nr.rd, nr.vol, rw.w, rw.l, rw.d, pts(redScore),   redId);
+    rateStmts().upd.run(nb.rating, nb.rd, nb.vol, bw.w, bw.l, bw.d, pts(blackScore), blackId);
+    rateStmts().rec.run(Date.now(), redId, blackId, winner, tableId||null);
+  });
+  tx();
+  return { red: publicProfile(stmts.byId.get(redId)), black: publicProfile(stmts.byId.get(blackId)) };
+}
+
+// ── 排行榜 ──
+// 定级完成（games>=PLACEMENT_GAMES）的用户，按棋力降序
+const lbStmt = db.prepare(`SELECT username, ROUND(rating) AS rating, games, wins, losses, draws, points
+                           FROM users WHERE games >= ? ORDER BY rating DESC LIMIT ?`);
+function leaderboard(limit){ return lbStmt.all(PLACEMENT_GAMES, limit||100); }
+
 module.exports = {
   db, createUser, findByName, findById, publicProfile, recordVisit, PLACEMENT_GAMES,
   createArticle, updateArticle, deleteArticle, getArticle, listArticles,
   addComment, listComments, deleteComment,
   addCollection, listCollections, deleteCollection, listTags,
+  applyGameResult, leaderboard,
 };
