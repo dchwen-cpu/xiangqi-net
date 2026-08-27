@@ -245,7 +245,8 @@
 
 <footer>
   <div><span class="seal-text">立山斋制作</span> · <span class="num" id="year"></span></div>
-  <div id="visit-counter" style="display:none;margin-top:8px;color:var(--ink-faint)">
+  <div id="stat-line" style="display:none;margin-top:8px;color:var(--ink-faint)">
+    <span id="online-wrap" style="display:none">当前在线 <span class="num" id="online-count">—</span> 人 · </span>
     累计访问 <span class="num" id="visit-count">—</span> 次
   </div>
   <div style="margin-top:8px">
@@ -526,15 +527,29 @@ async function pingVisit(){
     const d = await res.json();
     if(typeof d.total === 'number'){
       document.getElementById('visit-count').textContent = d.total.toLocaleString();
-      document.getElementById('visit-counter').style.display = '';   // 有数据才显示
+      document.getElementById('stat-line').style.display = '';   // 有数据才显示
     }
   }catch(e){ /* 后端没通就静默不显示 */ }
+}
+async function pingOnline(){
+  try{
+    const res = await fetch(`${CONFIG.API_BASE}/api/online`);
+    if(!res.ok) return;
+    const d = await res.json();
+    if(typeof d.count === 'number'){
+      document.getElementById('online-count').textContent = d.count.toLocaleString();
+      document.getElementById('online-wrap').style.display = '';
+      document.getElementById('stat-line').style.display = '';
+    }
+  }catch(e){ /* 静默 */ }
 }
 
 /* ---------- 启动 ---------- */
 renderIdentity();
 renderGames();
 pingVisit();
+pingOnline();
+setInterval(pingOnline, 30000);   // 每 30 秒刷新在线人数
 </script>
 </body>
 </html>
