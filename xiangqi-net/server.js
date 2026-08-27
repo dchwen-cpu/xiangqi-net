@@ -72,6 +72,12 @@ app.post('/api/visits', (req, res) => {
   }
 });
 
+// 当前在线人数：门厅用（大厅里已有实时 lobby:online 事件，这个给静态页拉取）
+app.get('/api/online', (_req, res) => {
+  const room = io.sockets.adapter.rooms.get('lobby');
+  res.json({ count: room ? room.size : 0 });
+});
+
 // 引擎文件自检页：浏览器打开 /engine-check 即可看到服务器上真实存在哪些文件
 app.get('/engine-check', (_,res)=>{
   const fs=require('fs');
