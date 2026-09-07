@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>观澜台 · 立山斋</title>
+<style>
+  :root{--bg:#14161c;--panel:#1c1f28;--line:#2b2f3c;--ink:#d9dce6;
+        --dim:#8b91a5;--seal:#b3452f;--jade:#3fbf7f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.7 "Songti SC","Noto Serif SC",serif}
+  header{display:flex;align-items:baseline;gap:14px;
+         padding:18px 28px 10px;border-bottom:1px solid var(--line)}
+  h1{font-size:20px;margin:0;letter-spacing:.12em}
+  h1 .seal{color:var(--seal)}
+  .sub{color:var(--dim);font-size:12.5px}
+  header a{margin-left:auto;color:var(--dim);text-decoration:none;font-size:13px}
+  header a:hover{color:var(--ink)}
+  main{padding:16px 28px 40px;max-width:1500px;margin:0 auto}
+  /* 登录卡 */
+  .gate{max-width:360px;margin:12vh auto;background:var(--panel);
+        border:1px solid var(--line);border-radius:12px;padding:28px 30px}
+  .gate h2{font-size:16px;margin:0 0 16px;font-weight:normal;
+           letter-spacing:.08em}
+  .gate input{width:100%;margin:6px 0;padding:9px 12px;border-radius:8px;
+        border:1px solid var(--line);background:#12141a;color:var(--ink);
+        font:inherit}
+  .gate button{width:100%;margin-top:14px;padding:10px;border:none;
+        border-radius:8px;background:var(--seal);color:#fff;font:inherit;
+        letter-spacing:.2em;cursor:pointer}
+  .gate .msg{min-height:1.4em;color:var(--dim);font-size:12.5px;margin-top:10px}
+  /* 门厅 */
+  .tabs{display:flex;gap:8px;margin:14px 0 10px;flex-wrap:wrap}
+  .tabs button{padding:7px 18px;border:1px solid var(--line);
+        border-radius:20px;background:transparent;color:var(--dim);
+        font:inherit;font-size:13.5px;cursor:pointer;letter-spacing:.1em}
+  .tabs button.on{background:var(--panel);color:var(--ink);
+        border-color:var(--jade)}
+  .tabs .spacer{flex:1}
+  .tabs a.open{align-self:center;color:var(--dim);font-size:12.5px;
+        text-decoration:none}
+  .tabs a.open:hover{color:var(--ink)}
+  .frame{width:100%;height:calc(100vh - 190px);min-height:520px;
+        border:1px solid var(--line);border-radius:12px;background:#0f1116}
+  .note{color:var(--dim);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>观<span class="seal">澜</span>台</h1>
+  <span class="sub">立山斋 · 交易世界属主门厅</span>
+  <a href="/">← 回立山斋</a>
+</header>
+<main id="main"></main>
+<script>
+(function(){
+  var M = document.getElementById('main');
+  function tok(){ try{ return localStorage.getItem('lsz.token'); }catch(e){ return null; } }
+  function setTok(t){ try{ localStorage.setItem('lsz.token', t); }catch(e){} }
+
+  function gate(msg){
+    M.innerHTML =
+      '<div class="gate"><h2>止步 · 属主之地</h2>'+
+      '<input id="u" placeholder="用户名" autocomplete="username">'+
+      '<input id="p" type="password" placeholder="口令" autocomplete="current-password">'+
+      '<button id="go">入 内</button><div class="msg" id="m">'+(msg||'')+'</div></div>';
+    document.getElementById('go').onclick = function(){
+      var u = document.getElementById('u').value.trim();
+      var p = document.getElementById('p').value;
+      fetch('/auth/login',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username:u,password:p})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.token){ setTok(d.token); boot(); }
+        else document.getElementById('m').textContent = (d && d.error) || '登录失败';
+      })
+      .catch(function(){ document.getElementById('m').textContent = '网络错误'; });
+    };
+    document.getElementById('p').addEventListener('keydown',
+      function(e){ if(e.key==='Enter') document.getElementById('go').click(); });
+  }
+
+  function hall(panels){
+    if(!panels.length){
+      M.innerHTML = '<p class="note">门厅已开,但尚未配置任何面板 —— 请在'+
+        ' Render 环境变量里设 TRADING_PANELS(或 SPYQ_STATION_URL)。</p>';
+      return;
+    }
+    var tabs = panels.map(function(p,i){
+      return '<button data-i="'+i+'" class="'+(i===0?'on':'')+'">'+p.label+'</button>';
+    }).join('');
+    M.innerHTML =
+      '<div class="tabs">'+tabs+'<span class="spacer"></span>'+
+      '<a class="open" id="open" target="_blank" rel="noopener">另窗打开 ↗</a></div>'+
+      '<iframe class="frame" id="fr"></iframe>'+
+      '<div class="note">面板地址仅存服务端;此页不对外链接、不入索引。'+
+      '若窗内空白,多为对方站点禁嵌,请用"另窗打开"。</div>';
+    var fr = document.getElementById('fr'), op = document.getElementById('open');
+    function show(i){
+      fr.src = panels[i].url; op.href = panels[i].url;
+      Array.prototype.forEach.call(M.querySelectorAll('.tabs button'),
+        function(b){ b.className = (+b.dataset.i === i) ? 'on' : ''; });
+    }
+    M.querySelector('.tabs').addEventListener('click', function(e){
+      if(e.target.dataset && e.target.dataset.i !== undefined) show(+e.target.dataset.i);
+    });
+    show(0);
+  }
+
+  function boot(){
+    var t = tok();
+    if(!t) return gate();
+    fetch('/api/trading/portal',{headers:{'Authorization':'Bearer '+t}})
+      .then(function(r){
+        if(r.status===401) return gate('会话过期,请重新入内');
+        if(r.status===404) return gate();   // 非属主:与无此页无异
+        return r.json().then(function(d){ hall(d.panels||[]); });
+      })
+      .catch(function(){ gate('网络错误'); });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
